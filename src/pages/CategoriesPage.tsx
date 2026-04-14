@@ -1,16 +1,19 @@
-import { useCategories, useTransactions, useAddCategory } from "@/hooks/useFinanceData";
+import { useCategories, useTransactions, useAddCategory, useUpdateCategory } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Pencil, Check, X } from "lucide-react";
 import { useState } from "react";
 
 export default function CategoriesPage() {
   const { data: categories = [], isLoading } = useCategories();
   const { data: transactions = [] } = useTransactions();
   const addCategory = useAddCategory();
+  const updateCategory = useUpdateCategory();
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏷");
   const [limit, setLimit] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLimit, setEditLimit] = useState("");
 
   const byCategory: Record<string, number> = {};
   transactions.filter((t) => t.type === "expense").forEach((t) => {
@@ -23,6 +26,13 @@ export default function CategoriesPage() {
     if (!name.trim()) return;
     addCategory.mutate({ name: name.trim(), icon, color: "#60a5fa", monthly_limit: parseFloat(limit) || 0 });
     setName(""); setIcon("🏷"); setLimit(""); setShowAdd(false);
+  };
+
+  const handleEditSave = (id: string) => {
+    const val = parseFloat(editLimit);
+    if (isNaN(val) || val < 0) return;
+    updateCategory.mutate({ id, monthly_limit: val });
+    setEditingId(null);
   };
 
   return (
@@ -50,22 +60,57 @@ export default function CategoriesPage() {
           const spent = byCategory[c.name] || 0;
           const pct = c.monthly_limit > 0 ? Math.min(100, Math.round((spent / c.monthly_limit) * 100)) : 0;
           const over = spent > c.monthly_limit && c.monthly_limit > 0;
+          const nearLimit = !over && c.monthly_limit > 0 && pct >= 80;
+          const isEditing = editingId === c.id;
+
           return (
-            <div key={c.id} className="glass-card p-4">
+            <div key={c.id} className={`glass-card p-4 ${nearLimit ? "ring-1 ring-warning/40" : ""} ${over ? "ring-1 ring-destructive/40" : ""}`}>
               <div className="flex items-center gap-3 mb-2.5">
                 <span className="text-[22px]">{c.icon}</span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">Limite: {formatShortCurrency(c.monthly_limit)}</p>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-xs text-muted-foreground">R$</span>
+                      <input
+                        type="number"
+                        value={editLimit}
+                        onChange={(e) => setEditLimit(e.target.value)}
+                        autoFocus
+                        className="w-24 bg-secondary border border-primary rounded px-2 py-1 text-xs text-foreground focus:outline-none"
+                      />
+                      <button onClick={() => handleEditSave(c.id)} className="p-1 rounded bg-primary/20 text-primary hover:bg-primary/30">
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="p-1 rounded bg-destructive/20 text-destructive hover:bg-destructive/30">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs text-muted-foreground">Limite: {formatShortCurrency(c.monthly_limit)}</p>
+                      <button
+                        onClick={() => { setEditingId(c.id); setEditLimit(String(c.monthly_limit)); }}
+                        className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold font-mono" style={{ color: over ? "#f87171" : c.color }}>{formatShortCurrency(spent)}</p>
-                  <p className="text-[11px] text-muted-foreground">{pct}% do limite</p>
+                  <p className="text-sm font-semibold font-mono" style={{ color: over ? "#f87171" : nearLimit ? "#fbbf24" : c.color }}>{formatShortCurrency(spent)}</p>
+                  <p className={`text-[11px] ${over ? "text-destructive" : nearLimit ? "text-warning" : "text-muted-foreground"}`}>
+                    {over ? "⚠️ Estourado!" : nearLimit ? "⚠️ Quase no limite" : `${pct}% do limite`}
+                  </p>
                 </div>
               </div>
               {c.monthly_limit > 0 && (
-                <div className="h-1 bg-foreground/[0.08] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: over ? "#f87171" : c.color }} />
+                <div className="h-1.5 bg-foreground/[0.08] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%`, background: over ? "#f87171" : nearLimit ? "#fbbf24" : c.color }}
+                  />
                 </div>
               )}
             </div>
