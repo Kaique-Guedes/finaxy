@@ -6,12 +6,13 @@ import BalanceCard from "@/components/BalanceCard";
 import QuickActions from "@/components/QuickActions";
 import TransactionList from "@/components/TransactionList";
 import AddTransactionModal from "@/components/AddTransactionModal";
+import SalarySetup from "@/components/SalarySetup";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data: profile } = useProfile();
+  const { data: profile, refetch: refetchProfile } = useProfile();
   const { data: transactions = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
   const addTx = useAddTransaction();
@@ -21,6 +22,7 @@ export default function Dashboard() {
 
   const name = profile?.name || user?.email?.split("@")[0] || "Usuário";
   const initials = getInitials(name);
+  const hasSalary = Number(profile?.monthly_salary || 0) > 0;
 
   if (isLoading) {
     return (
@@ -46,7 +48,11 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <BalanceCard transactions={transactions} />
+      {!hasSalary && (
+        <SalarySetup currentSalary={0} onDone={() => refetchProfile()} />
+      )}
+
+      <BalanceCard />
       <QuickActions onAddTransaction={() => setModalOpen(true)} />
       <TransactionList transactions={transactions} onDelete={(id) => deleteTx.mutate(id)} />
 

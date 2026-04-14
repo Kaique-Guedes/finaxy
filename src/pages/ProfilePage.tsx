@@ -1,20 +1,33 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile, useTransactions, useGoals } from "@/hooks/useFinanceData";
-import { getInitials } from "@/lib/format";
-import { Loader2, LogOut } from "lucide-react";
+import { useProfile, useTransactions, useGoals, useUpdateProfile } from "@/hooks/useFinanceData";
+import { getInitials, formatShortCurrency } from "@/lib/format";
+import { Loader2, LogOut, Pencil, Check } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
   const { data: transactions = [] } = useTransactions();
   const { data: goals = [] } = useGoals();
+  const updateProfile = useUpdateProfile();
+  const [editingSalary, setEditingSalary] = useState(false);
+  const [salaryInput, setSalaryInput] = useState("");
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
 
   const name = profile?.name || "Usuário";
   const email = profile?.email || user?.email || "";
   const initials = getInitials(name);
+  const salary = Number(profile?.monthly_salary || 0);
   const memberSince = profile?.created_at ? new Date(profile.created_at).toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) : "";
+
+  const handleSaveSalary = () => {
+    const val = parseFloat(salaryInput);
+    if (!val || val <= 0) return;
+    updateProfile.mutate({ monthly_salary: val }, {
+      onSuccess: () => setEditingSalary(false),
+    });
+  };
 
   return (
     <div className="pb-24 animate-fade-in">
@@ -27,6 +40,36 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-5 space-y-3">
+        {/* Salary card */}
+        <div className="glass-card p-4">
+          <p className="text-sm font-semibold text-foreground mb-3">💼 Salário mensal</p>
+          {editingSalary ? (
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={salaryInput}
+                onChange={(e) => setSalaryInput(e.target.value)}
+                placeholder={String(salary)}
+                className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                autoFocus
+              />
+              <button onClick={handleSaveSalary} className="px-3 py-2.5 rounded-lg bg-primary text-primary-foreground">
+                <Check className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-between items-center">
+              <p className="text-xl font-semibold text-success font-mono">{formatShortCurrency(salary)}</p>
+              <button
+                onClick={() => { setSalaryInput(String(salary)); setEditingSalary(true); }}
+                className="text-muted-foreground hover:text-accent transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="glass-card p-4">
           <Row label="Membro desde" value={memberSince} />
           <Row label="Transações" value={String(transactions.length)} />
