@@ -166,6 +166,21 @@ export function useAddCategory() {
   });
 }
 
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<Pick<Category, "name" | "icon" | "color" | "monthly_limit">>) => {
+      const { error } = await supabase.from("categories").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Categoria atualizada!");
+    },
+    onError: () => toast.error("Erro ao atualizar categoria"),
+  });
+}
+
 // ---- Goals ----
 export function useGoals() {
   const { user } = useAuth();
