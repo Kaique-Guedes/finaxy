@@ -6,7 +6,7 @@ import { toast } from "sonner";
 export type Transaction = {
   id: string;
   user_id: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "investment";
   description: string;
   amount: number;
   category: string;
@@ -42,10 +42,12 @@ export type Profile = {
   user_id: string;
   name: string;
   email: string | null;
+  monthly_salary: number;
   created_at: string;
   updated_at: string;
 };
 
+// ---- Profile ----
 export function useProfile() {
   const { user } = useAuth();
   return useQuery({
@@ -63,6 +65,26 @@ export function useProfile() {
   });
 }
 
+export function useUpdateProfile() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: Partial<Pick<Profile, "name" | "monthly_salary">>) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Perfil atualizado!");
+    },
+    onError: () => toast.error("Erro ao atualizar perfil"),
+  });
+}
+
+// ---- Transactions ----
 export function useTransactions() {
   const { user } = useAuth();
   return useQuery({
@@ -110,6 +132,7 @@ export function useDeleteTransaction() {
   });
 }
 
+// ---- Categories ----
 export function useCategories() {
   const { user } = useAuth();
   return useQuery({
@@ -143,6 +166,7 @@ export function useAddCategory() {
   });
 }
 
+// ---- Goals ----
 export function useGoals() {
   const { user } = useAuth();
   return useQuery({
@@ -202,4 +226,42 @@ export function useDeleteGoal() {
       toast.success("Meta removida!");
     },
   });
+}
+
+// ---- Finance helpers ----
+export function useFinanceSummary() {
+  const { data: profile } = useProfile();
+  const { data: transactions = [] } = useTransactions();
+  const { data: goals = [] } = useGoals();
+
+  const salary = Number(profile?.monthly_salary || 0);
+  const extraIncome = transactions
+    .filter((t) => t.type === "income")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const fixedExpenses = transactions
+    .filter((t) => t.type === "expense" && t.recurrence === "monthly")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const variableExpenses = transactions
+    .filter((t) => t.type === "expense" && t.recurrence !== "monthly")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const totalExpenses = fixedExpenses + variableExpenses;
+  const investments = transactions
+    .filter((t) => t.type === "investment")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const goalContributions = goals.reduce((s, g) => s + Number(g.saved_amount), 0);
+
+  const totalIncome = salary + extraIncome;
+  const available = totalIncome - totalExpenses - investments;
+
+  return {
+    salary,
+    extraIncome,
+    totalIncome,
+    fixedExpenses,
+    variableExpenses,
+    totalExpenses,
+    investments,
+    goalContributions,
+    available,
+  };
 }

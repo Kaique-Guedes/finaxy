@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGoals, useAddGoal, useTransactions, useUpdateGoal } from "@/hooks/useFinanceData";
+import { useGoals, useAddGoal, useUpdateGoal, useFinanceSummary } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
 import { Loader2, X, Plus } from "lucide-react";
 
@@ -7,19 +7,15 @@ const goalBarColors = ["#3b82f6", "#38bdf8", "#a78bfa", "#4ade80", "#f59e0b", "#
 
 export default function GoalsPage() {
   const { data: goals = [], isLoading } = useGoals();
-  const { data: transactions = [] } = useTransactions();
   const addGoal = useAddGoal();
   const updateGoal = useUpdateGoal();
+  const summary = useFinanceSummary();
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏦");
   const [target, setTarget] = useState("");
   const [saved, setSaved] = useState("0");
   const [months, setMonths] = useState("12");
-
-  const income = transactions.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const expense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  const monthlySaving = income - expense;
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
 
@@ -69,7 +65,7 @@ export default function GoalsPage() {
           <div className="px-5 space-y-2.5">
             {goals.map((g) => {
               const monthly = (Number(g.target_amount) - Number(g.saved_amount)) / g.months;
-              const ok = monthly <= monthlySaving;
+              const ok = monthly <= summary.available;
               return (
                 <div key={g.id} className="glass-card flex items-center gap-3 p-3.5">
                   <span className="text-lg">{g.icon}</span>

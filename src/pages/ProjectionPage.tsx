@@ -1,29 +1,24 @@
-import { useTransactions } from "@/hooks/useFinanceData";
+import { useFinanceSummary } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart } from "recharts";
 
 export default function ProjectionPage() {
-  const { data: transactions = [], isLoading } = useTransactions();
+  const summary = useFinanceSummary();
   const [months, setMonths] = useState(12);
 
-  if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
-
-  const income = transactions.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const expense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  const balance = income - expense;
-  const monthlySaving = balance;
+  const monthlySaving = summary.available;
 
   const projData = Array.from({ length: months + 1 }, (_, i) => ({
     label: i === 0 ? "Hoje" : `M${i}`,
-    saldo: Math.round(balance + monthlySaving * i),
+    saldo: Math.round(monthlySaving * (i + 1)),
   }));
 
   const scenarios = [
     { label: "Conservador (-10% renda)", saving: monthlySaving * 0.9, icon: "🛡", col: "#60a5fa" },
     { label: "Atual (comportamento atual)", saving: monthlySaving, icon: "📊", col: "#4ade80" },
-    { label: "Otimizado (-15% gastos)", saving: monthlySaving + expense * 0.15, icon: "🚀", col: "#a78bfa" },
+    { label: "Otimizado (-15% gastos)", saving: monthlySaving + summary.totalExpenses * 0.15, icon: "🚀", col: "#a78bfa" },
   ];
 
   return (
@@ -45,14 +40,7 @@ export default function ProjectionPage() {
         </div>
         <div className="flex items-center gap-3 pt-3 border-t border-border">
           <span className="text-[13px] text-muted-foreground">Horizonte:</span>
-          <input
-            type="range"
-            min={1}
-            max={36}
-            value={months}
-            onChange={(e) => setMonths(parseInt(e.target.value))}
-            className="flex-1 accent-accent"
-          />
+          <input type="range" min={1} max={36} value={months} onChange={(e) => setMonths(parseInt(e.target.value))} className="flex-1 accent-accent" />
           <span className="text-[13px] font-semibold text-foreground min-w-[50px] text-right">{months} meses</span>
         </div>
       </div>

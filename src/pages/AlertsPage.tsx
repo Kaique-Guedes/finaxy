@@ -1,4 +1,4 @@
-import { useTransactions, useCategories, useGoals } from "@/hooks/useFinanceData";
+import { useTransactions, useCategories, useGoals, useFinanceSummary } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 
@@ -6,13 +6,9 @@ export default function AlertsPage() {
   const { data: transactions = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
   const { data: goals = [] } = useGoals();
+  const summary = useFinanceSummary();
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
-
-  const income = transactions.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const expense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  const saving = income - expense;
-  const savingRate = income > 0 ? ((saving / income) * 100).toFixed(1) : "0";
 
   const byCategory: Record<string, number> = {};
   transactions.filter((t) => t.type === "expense").forEach((t) => {
@@ -21,6 +17,11 @@ export default function AlertsPage() {
 
   type AlertItem = { type: "danger" | "warn" | "info"; text: string; hint: string };
   const alerts: AlertItem[] = [];
+
+  // No salary configured
+  if (summary.salary <= 0) {
+    alerts.push({ type: "warn", text: "Salário não configurado", hint: "Configure seu salário no perfil para ter controle financeiro completo" });
+  }
 
   // Category limit alerts
   categories.forEach((c) => {
@@ -32,23 +33,32 @@ export default function AlertsPage() {
     }
   });
 
+  // Negative balance
+  if (summary.available < 0) {
+    alerts.push({ type: "danger", text: "Saldo negativo este mês!", hint: `Seus gastos e investimentos superam sua renda em ${formatShortCurrency(Math.abs(summary.available))}` });
+  }
+
   // Goal risk alerts
   goals.forEach((g) => {
     const monthly = (Number(g.target_amount) - Number(g.saved_amount)) / g.months;
-    if (monthly > saving) {
-      alerts.push({ type: "danger", text: `Meta "${g.name}" em risco`, hint: `Precisa guardar ${formatShortCurrency(monthly)}/mês, mas poupa ${formatShortCurrency(saving)}` });
+    if (monthly > summary.available) {
+      alerts.push({ type: "danger", text: `Meta "${g.name}" em risco`, hint: `Precisa guardar ${formatShortCurrency(monthly)}/mês, mas saldo disponível é ${formatShortCurrency(summary.available)}` });
     }
   });
 
   // Top category
   const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
   if (sorted.length > 0) {
-    const topPct = expense > 0 ? Math.round((sorted[0][1] / expense) * 100) : 0;
-    alerts.push({ type: "info", text: `Dica: seus maiores gastos são em ${sorted[0][0]}`, hint: `Representa ${topPct}% dos seus gastos mensais` });
+    const topPct = summary.totalExpenses > 0 ? Math.round((sorted[0][1] / summary.totalExpenses) * 100) : 0;
+    alerts.push({ type: "info", text: `Dica: maiores gastos em ${sorted[0][0]}`, hint: `Representa ${topPct}% dos seus gastos mensais` });
   }
 
-  if (parseFloat(savingRate) > 20) {
-    alerts.push({ type: "info", text: `Você poupou ${savingRate}% da renda esse mês!`, hint: "Acima da média recomendada de 20%" });
+  // Good saving rate
+  if (summary.totalIncome > 0 && summary.available > 0) {
+    const rate = (summary.available / summary.totalIncome * 100).toFixed(0);
+    if (Number(rate) > 20) {
+      alerts.push({ type: "info", text: `Você poupou ${rate}% da renda esse mês!`, hint: "Acima da média recomendada de 20%" });
+    }
   }
 
   if (alerts.length === 0) {
