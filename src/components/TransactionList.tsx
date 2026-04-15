@@ -83,7 +83,7 @@ export default function TransactionList({ transactions, onDelete }: Props) {
                 <p className={`text-sm font-semibold font-mono ${
                   t.type === "expense" ? "text-destructive" : t.type === "investment" ? "text-accent" : "text-success"
                 }`}>
-                  {t.type === "income" ? "+" : "-"} {formatShortCurrency(Number(t.amount))}
+                  {t.type === "income" ? "+" : t.type === "investment" ? "" : "-"} {formatShortCurrency(Number(t.amount))}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(t.date)}</p>
               </div>

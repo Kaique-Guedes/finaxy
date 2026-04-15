@@ -71,7 +71,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
       category || categories[0]?.name || "Outros";
 
     onSave({
-      type: isGoalContribution ? "expense" : type,
+      type: isGoalContribution ? "investment" : type,
       description: description.trim(),
       amount: val,
       category: defaultCat,
