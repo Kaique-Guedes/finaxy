@@ -67,6 +67,13 @@ export default function ProjectionPage() {
     topCategories.forEach(({ cat, growth }) => {
       if (growth > 20) insights.push(`Seus gastos com ${cat} aumentaram ${growth.toFixed(0)}% este mês`);
     });
+    
+    // Investment breakdown by category
+    const investByCategory: Record<string, number> = {};
+    transactions.filter(t => t.type === "investment").forEach(t => {
+      investByCategory[t.category] = (investByCategory[t.category] || 0) + Number(t.amount);
+    });
+    const sortedInvestments = Object.entries(investByCategory).sort((a, b) => b[1] - a[1]);
     if (avg3Investments > 0 && summary.investments < avg3Investments * 0.8) {
       insights.push("Você investiu menos do que a média dos últimos 3 meses");
     }
@@ -109,6 +116,7 @@ export default function ProjectionPage() {
       totalInvestedAll, investPct,
       topCategories, insights,
       projectionData, goalProjections, monthlySaving,
+      sortedInvestments,
     };
   }, [transactions, goals, summary, months]);
 
@@ -148,10 +156,35 @@ export default function ProjectionPage() {
         </div>
       </div>
 
+      {/* Investment Breakdown */}
+      {analysis.sortedInvestments.length > 0 && (
+        <>
+          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">💼 Detalhamento de Patrimônio</p>
+          <div className="px-5 space-y-2 mb-5">
+            <div className="glass-card p-4 mb-2 bg-accent/5 border-accent/20">
+              <div className="flex justify-between items-center">
+                <p className="text-sm font-medium text-foreground">Patrimônio Total</p>
+                <p className="text-lg font-bold text-accent font-mono">{formatShortCurrency(summary.available + summary.investments)}</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Soma do saldo disponível e todos os investimentos</p>
+            </div>
+            {analysis.sortedInvestments.map(([cat, val]) => (
+              <div key={cat} className="glass-card flex items-center gap-3 p-3.5">
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-foreground">{cat}</p>
+                  <p className="text-xs text-muted-foreground">{((val / analysis.totalInvestedAll) * 100).toFixed(1)}% da carteira</p>
+                </div>
+                <p className="text-sm font-semibold text-accent font-mono">{formatShortCurrency(val)}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Where to improve */}
       {analysis.topCategories.length > 0 && (
         <>
-          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">📊 Onde melhorar</p>
+          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">📊 Onde melhorar (Gastos)</p>
           <div className="px-5 space-y-2 mb-5">
             {analysis.topCategories.map(({ cat, val, growth }) => (
               <div key={cat} className={`glass-card flex items-center gap-3 p-3.5 ${growth > 20 ? "ring-1 ring-warning/40" : ""}`}>

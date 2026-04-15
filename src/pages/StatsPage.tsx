@@ -6,8 +6,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 const catColors: Record<string, string> = {
   Alimentação: "#f87171", Transporte: "#fb923c", Moradia: "#a78bfa",
   Saúde: "#34d399", Lazer: "#60a5fa", Educação: "#fbbf24",
-  Vestuário: "#f472b6", "Renda Extra": "#4ade80", "Renda Fixa": "#38bdf8",
-  "Renda Variável": "#f59e0b", Fundos: "#a78bfa", Criptomoedas: "#fb923c",
+  Vestuário: "#f472b6", "Renda Extra": "#4ade80", 
+  "Reserva de Emergência": "#10b981", "Investimentos Futuros": "#8b5cf6",
+  "Renda Fixa": "#38bdf8", "Renda Variável": "#f59e0b", 
+  Fundos: "#a78bfa", Criptomoedas: "#fb923c",
   Previdência: "#34d399", Outros: "#94a3b8",
 };
 

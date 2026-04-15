@@ -6,7 +6,7 @@ import { toast } from "sonner";
 type TxType = "expense" | "income" | "investment";
 
 const investmentCategories = [
-  "Renda Fixa", "Renda Variável", "Fundos", "Criptomoedas", "Previdência", "Outros",
+  "Reserva de Emergência", "Investimentos Futuros", "Renda Fixa", "Renda Variável", "Fundos", "Criptomoedas", "Previdência", "Outros",
 ];
 
 interface Props {
@@ -86,7 +86,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
     setDescription("");
     setAmount("");
     setCategory("");
-    setInvestCategory("Renda Fixa");
+    setInvestCategory("Reserva de Emergência");
     setDate(new Date().toISOString().slice(0, 10));
     setRecurrence("once");
     setIsGoalContribution(false);
