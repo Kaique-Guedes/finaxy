@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { Category } from "@/hooks/useFinanceData";
+import { Category, Goal, useGoals, useUpdateGoal } from "@/hooks/useFinanceData";
+import { toast } from "sonner";
 
 type TxType = "expense" | "income" | "investment";
+
+const investmentCategories = [
+  "Renda Fixa", "Renda Variável", "Fundos", "Criptomoedas", "Previdência", "Outros",
+];
 
 interface Props {
   open: boolean;
@@ -16,8 +21,26 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
+  const [investCategory, setInvestCategory] = useState("Renda Fixa");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [recurrence, setRecurrence] = useState<"once" | "monthly" | "variable">("once");
+  const [isGoalContribution, setIsGoalContribution] = useState(false);
+  const [selectedGoalId, setSelectedGoalId] = useState("");
+
+  const { data: goals = [] } = useGoals();
+  const updateGoal = useUpdateGoal();
+
+  const activeGoals = goals.filter((g) => Number(g.saved_amount) < Number(g.target_amount));
+
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => {
+        const firstInput = document.querySelector('[data-modal-first-input]') as HTMLInputElement;
+        firstInput?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -25,25 +48,49 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
     const val = parseFloat(amount);
     if (!description.trim() || !val || val <= 0 || !date) return;
 
+    // Goal contribution logic
+    if (isGoalContribution && selectedGoalId) {
+      const goal = goals.find((g) => g.id === selectedGoalId);
+      if (!goal) return;
+      const remaining = Number(goal.target_amount) - Number(goal.saved_amount);
+      if (val > remaining) {
+        toast.error(`Valor excede o restante da meta (R$ ${remaining.toFixed(0)})`);
+        return;
+      }
+      // Update goal saved_amount
+      updateGoal.mutate({
+        id: goal.id,
+        saved_amount: Number(goal.saved_amount) + val,
+      });
+    }
+
     const defaultCat =
+      isGoalContribution ? `Aporte: ${goals.find(g => g.id === selectedGoalId)?.name || "Meta"}` :
       type === "income" ? "Renda Extra" :
-      type === "investment" ? "Investimento" :
+      type === "investment" ? investCategory :
       category || categories[0]?.name || "Outros";
 
     onSave({
-      type,
+      type: isGoalContribution ? "expense" : type,
       description: description.trim(),
       amount: val,
       category: defaultCat,
       date,
-      recurrence: type === "investment" ? "once" : recurrence,
+      recurrence: type === "investment" || isGoalContribution ? "once" : recurrence,
     });
+    resetForm();
+    onClose();
+  };
+
+  const resetForm = () => {
     setDescription("");
     setAmount("");
     setCategory("");
+    setInvestCategory("Renda Fixa");
     setDate(new Date().toISOString().slice(0, 10));
     setRecurrence("once");
-    onClose();
+    setIsGoalContribution(false);
+    setSelectedGoalId("");
   };
 
   const typeButtons: { key: TxType; label: string; activeClass: string }[] = [
@@ -55,8 +102,9 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
   return (
     <div className="fixed inset-0 bg-black/70 z-[200] flex items-end justify-center" onClick={onClose}>
       <div
-        className="bg-card rounded-t-3xl w-full max-w-[430px] p-6 pb-10 border border-border border-b-0 animate-slide-up"
+        className="bg-card rounded-t-3xl w-full max-w-[430px] p-6 pb-10 border border-border border-b-0 animate-slide-up overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
+        data-scrollable
       >
         <div className="w-10 h-1 bg-foreground/15 rounded-full mx-auto mb-5" />
         <div className="flex justify-between items-center mb-5">
@@ -69,9 +117,9 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
           {typeButtons.map((b) => (
             <button
               key={b.key}
-              onClick={() => setType(b.key)}
+              onClick={() => { setType(b.key); setIsGoalContribution(false); }}
               className={`flex-1 py-2.5 rounded-lg border text-[12px] font-medium transition-colors ${
-                type === b.key ? b.activeClass : "border-border text-muted-foreground"
+                type === b.key && !isGoalContribution ? b.activeClass : "border-border text-muted-foreground"
               }`}
             >
               {b.label}
@@ -79,25 +127,98 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
           ))}
         </div>
 
+        {/* Goal contribution toggle */}
+        {activeGoals.length > 0 && (
+          <button
+            onClick={() => { setIsGoalContribution(!isGoalContribution); if (!isGoalContribution) setSelectedGoalId(activeGoals[0]?.id || ""); }}
+            className={`w-full py-2.5 rounded-lg border text-[12px] font-medium transition-colors mb-4 ${
+              isGoalContribution ? "bg-primary/15 border-primary/40 text-primary" : "border-border text-muted-foreground"
+            }`}
+          >
+            🎯 Aporte em Meta
+          </button>
+        )}
+
         <div className="space-y-4">
           <div>
             <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Descrição</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={type === "investment" ? "Ex: Tesouro Direto" : type === "income" ? "Ex: Freelance" : "Ex: Mercado"} className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
+            <input
+              data-modal-first-input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={isGoalContribution ? "Ex: Aporte mensal" : type === "investment" ? "Ex: Tesouro Direto" : type === "income" ? "Ex: Freelance" : "Ex: Mercado"}
+              className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
           </div>
           <div>
             <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Valor (R$)</label>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" step="0.01" className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
+            <input
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0,00"
+              className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              autoComplete="off"
+            />
           </div>
           <div>
             <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Data</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-sm text-foreground focus:border-primary focus:outline-none" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground focus:border-primary focus:outline-none"
+            />
           </div>
 
+          {/* Goal selector */}
+          {isGoalContribution && (
+            <div>
+              <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Meta</label>
+              <select
+                value={selectedGoalId}
+                onChange={(e) => setSelectedGoalId(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
+                {activeGoals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.icon} {g.name} — faltam R$ {(Number(g.target_amount) - Number(g.saved_amount)).toFixed(0)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Investment category */}
+          {type === "investment" && !isGoalContribution && (
+            <div>
+              <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Categoria do investimento</label>
+              <select
+                value={investCategory}
+                onChange={(e) => setInvestCategory(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
+                {investmentCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Category only for expenses */}
-          {type === "expense" && (
+          {type === "expense" && !isGoalContribution && (
             <div>
               <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Categoria</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-sm text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
                 {categories.map((c) => (
                   <option key={c.id} value={c.name}>{c.icon} {c.name}</option>
                 ))}
@@ -107,10 +228,14 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
           )}
 
           {/* Recurrence only for expenses */}
-          {type === "expense" && (
+          {type === "expense" && !isGoalContribution && (
             <div>
               <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Tipo de gasto</label>
-              <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as "once" | "monthly" | "variable")} className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-sm text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer">
+              <select
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value as "once" | "monthly" | "variable")}
+                className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
                 <option value="monthly">Fixo (mensal)</option>
                 <option value="once">Variável (único)</option>
                 <option value="variable">Variável (recorrente)</option>

@@ -107,14 +107,24 @@ export function useAddTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (tx: Omit<Transaction, "id" | "user_id" | "created_at">) => {
-      const { error } = await supabase.from("transactions").insert({ ...tx, user_id: user!.id });
-      if (error) throw error;
+      const { error } = await supabase.from("transactions").insert({
+        ...tx,
+        amount: Number(tx.amount),
+        user_id: user!.id,
+      });
+      if (error) {
+        console.error("Transaction insert error:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Transação salva!");
     },
-    onError: () => toast.error("Erro ao salvar transação"),
+    onError: (err) => {
+      console.error("Transaction mutation error:", err);
+      toast.error("Erro ao salvar transação");
+    },
   });
 }
 
@@ -226,6 +236,7 @@ export function useUpdateGoal() {
       qc.invalidateQueries({ queryKey: ["goals"] });
       toast.success("Meta atualizada!");
     },
+    onError: () => toast.error("Erro ao atualizar meta"),
   });
 }
 
@@ -247,7 +258,6 @@ export function useDeleteGoal() {
 export function useFinanceSummary() {
   const { data: profile } = useProfile();
   const { data: transactions = [] } = useTransactions();
-  const { data: goals = [] } = useGoals();
 
   const salary = Number(profile?.monthly_salary || 0);
   const extraIncome = transactions
@@ -263,7 +273,6 @@ export function useFinanceSummary() {
   const investments = transactions
     .filter((t) => t.type === "investment")
     .reduce((s, t) => s + Number(t.amount), 0);
-  const goalContributions = goals.reduce((s, g) => s + Number(g.saved_amount), 0);
 
   const totalIncome = salary + extraIncome;
   const available = totalIncome - totalExpenses - investments;
@@ -276,7 +285,6 @@ export function useFinanceSummary() {
     variableExpenses,
     totalExpenses,
     investments,
-    goalContributions,
     available,
   };
 }
