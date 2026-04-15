@@ -18,12 +18,10 @@ export default function AlertsPage() {
   type AlertItem = { type: "danger" | "warn" | "info"; text: string; hint: string };
   const alerts: AlertItem[] = [];
 
-  // No salary configured
   if (summary.salary <= 0) {
     alerts.push({ type: "warn", text: "Salário não configurado", hint: "Configure seu salário no perfil para ter controle financeiro completo" });
   }
 
-  // Category limit alerts
   categories.forEach((c) => {
     const spent = byCategory[c.name] || 0;
     if (c.monthly_limit > 0 && spent > c.monthly_limit) {
@@ -33,31 +31,32 @@ export default function AlertsPage() {
     }
   });
 
-  // Negative balance
   if (summary.available < 0) {
     alerts.push({ type: "danger", text: "Saldo negativo este mês!", hint: `Seus gastos e investimentos superam sua renda em ${formatShortCurrency(Math.abs(summary.available))}` });
   }
 
-  // Goal risk alerts
   goals.forEach((g) => {
-    const monthly = (Number(g.target_amount) - Number(g.saved_amount)) / g.months;
-    if (monthly > summary.available) {
-      alerts.push({ type: "danger", text: `Meta "${g.name}" em risco`, hint: `Precisa guardar ${formatShortCurrency(monthly)}/mês, mas saldo disponível é ${formatShortCurrency(summary.available)}` });
+    const pct = Math.round((Number(g.saved_amount) / Number(g.target_amount)) * 100);
+    if (pct >= 100) {
+      alerts.push({ type: "info", text: `Meta "${g.name}" concluída! 🎉`, hint: "Parabéns por atingir essa meta!" });
+    } else {
+      const monthly = (Number(g.target_amount) - Number(g.saved_amount)) / g.months;
+      if (monthly > summary.available) {
+        alerts.push({ type: "danger", text: `Meta "${g.name}" em risco`, hint: `Precisa guardar ${formatShortCurrency(monthly)}/mês, mas saldo disponível é ${formatShortCurrency(summary.available)}` });
+      }
     }
   });
 
-  // Top category
   const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
   if (sorted.length > 0) {
     const topPct = summary.totalExpenses > 0 ? Math.round((sorted[0][1] / summary.totalExpenses) * 100) : 0;
     alerts.push({ type: "info", text: `Dica: maiores gastos em ${sorted[0][0]}`, hint: `Representa ${topPct}% dos seus gastos mensais` });
   }
 
-  // Good saving rate
   if (summary.totalIncome > 0 && summary.available > 0) {
     const rate = (summary.available / summary.totalIncome * 100).toFixed(0);
     if (Number(rate) > 20) {
-      alerts.push({ type: "info", text: `Você poupou ${rate}% da renda esse mês!`, hint: "Acima da média recomendada de 20%" });
+      alerts.push({ type: "info", text: `Você manteve ${rate}% da renda disponível!`, hint: "Acima da média recomendada de 20%" });
     }
   }
 

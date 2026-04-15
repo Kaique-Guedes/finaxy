@@ -2,7 +2,7 @@ import { formatShortCurrency, getCurrentMonth } from "@/lib/format";
 import { useFinanceSummary } from "@/hooks/useFinanceData";
 
 export default function BalanceCard() {
-  const { salary, totalIncome, totalExpenses, investments, available } = useFinanceSummary();
+  const { totalIncome, totalExpenses, investments, available } = useFinanceSummary();
 
   return (
     <div className="mx-5 mt-5 gradient-primary rounded-2xl p-6 relative overflow-hidden border border-primary/20">

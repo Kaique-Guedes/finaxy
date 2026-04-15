@@ -3,6 +3,8 @@
   "short_name": "Finx",
   "description": "App de gestão financeira pessoal",
   "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#0a0f1e",
   "theme_color": "#0a0f1e",
