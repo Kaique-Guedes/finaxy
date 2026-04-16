@@ -102,7 +102,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
   return (
     <div className="fixed inset-0 bg-black/70 z-[200] flex items-end justify-center" onClick={onClose}>
       <div
-        className="bg-card rounded-t-3xl w-full max-w-[430px] p-6 pb-10 border border-border border-b-0 animate-slide-up overflow-y-auto max-h-[90vh]"
+        className="bg-card rounded-t-3xl w-full max-w-[430px] p-6 pb-24 border border-border border-b-0 animate-slide-up overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
         data-scrollable
       >
