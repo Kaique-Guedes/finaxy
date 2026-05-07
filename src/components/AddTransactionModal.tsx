@@ -44,6 +44,19 @@ export default function AddTransactionModal({ open, onClose, onSave, categories,
 
   const activeGoals = goals.filter((g) => Number(g.saved_amount) < Number(g.target_amount));
 
+  // Declarar resetForm antes dos useEffect para evitar ReferenceError
+  const resetForm = () => {
+    setDescription("");
+    setAmount("");
+    setCategory("");
+    setInvestCategory("Reserva de Emergência");
+    setDate(defaultDateForMonth(defaultMonthKey));
+    setRecurrence("once");
+    setIsGoalContribution(false);
+    setSelectedGoalId("");
+    setIsPaid(false);
+  };
+
   // Preencher formulário se estiver editando
   useEffect(() => {
     if (editingTransaction) {
@@ -140,18 +153,6 @@ export default function AddTransactionModal({ open, onClose, onSave, categories,
 
     resetForm();
     onClose();
-  };
-
-  const resetForm = () => {
-    setDescription("");
-    setAmount("");
-    setCategory("");
-    setInvestCategory("Reserva de Emergência");
-    setDate(defaultDateForMonth(defaultMonthKey));
-    setRecurrence("once");
-    setIsGoalContribution(false);
-    setSelectedGoalId("");
-    setIsPaid(false);
   };
 
   const typeButtons: { key: TxType; label: string; activeClass: string }[] = [
