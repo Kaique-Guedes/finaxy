@@ -85,6 +85,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories,
       category: defaultCat,
       date,
       recurrence: type === "investment" || isGoalContribution ? "once" : recurrence,
+      paid: type === "expense" && !isGoalContribution ? false : true,
     });
     resetForm();
     onClose();
@@ -95,7 +96,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories,
     setAmount("");
     setCategory("");
     setInvestCategory("Reserva de Emergência");
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(defaultDateForMonth(defaultMonthKey));
     setRecurrence("once");
     setIsGoalContribution(false);
     setSelectedGoalId("");
