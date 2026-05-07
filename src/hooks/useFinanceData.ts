@@ -141,7 +141,8 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
     },
   });
-}
+
+export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
