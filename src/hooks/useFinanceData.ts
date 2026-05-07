@@ -12,6 +12,8 @@ export type Transaction = {
   category: string;
   date: string;
   recurrence: "once" | "monthly" | "variable";
+  paid: boolean;
+  is_recurring: boolean;
   created_at: string;
 };
 
