@@ -1,6 +1,6 @@
-import { useCategories, useTransactions, useAddCategory, useUpdateCategory } from "@/hooks/useFinanceData";
+import { useCategories, useTransactions, useAddCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
-import { Loader2, Plus, Pencil, Check, X } from "lucide-react";
+import { Loader2, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 export default function CategoriesPage() {
