@@ -141,6 +141,7 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
     },
   });
+}
 
 export function useDeleteTransaction() {
   const qc = useQueryClient();
