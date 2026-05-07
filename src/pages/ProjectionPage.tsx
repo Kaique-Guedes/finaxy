@@ -2,7 +2,7 @@ import { useTransactions, useGoals, useFinanceSummary } from "@/hooks/useFinance
 import { formatShortCurrency } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart, Line, LineChart } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
 export default function ProjectionPage() {
   const { data: transactions = [], isLoading } = useTransactions();
@@ -14,7 +14,7 @@ export default function ProjectionPage() {
     const now = new Date();
     const currentMonth = now.toISOString().slice(0, 7);
 
-    // Group transactions by month
+    // Agrupar transações por mês
     const byMonth: Record<string, { expenses: number; investments: number; income: number; byCategory: Record<string, number> }> = {};
     transactions.forEach((t) => {
       const m = t.date.slice(0, 7);
@@ -35,12 +35,11 @@ export default function ProjectionPage() {
 
     const currentMonthData = byMonth[currentMonth] || { expenses: 0, investments: 0, income: 0, byCategory: {} };
     const avg3Expenses = avg(last3.map((m) => byMonth[m].expenses));
-    const avg6Expenses = avg(last6.map((m) => byMonth[m].expenses));
     const avg3Investments = avg(last3.map((m) => byMonth[m].investments));
     const totalInvestedAll = transactions.filter(t => t.type === "investment").reduce((s, t) => s + Number(t.amount), 0);
     const investPct = summary.totalIncome > 0 ? (summary.investments / summary.totalIncome * 100) : 0;
 
-    // Top 3 categories
+    // Top 3 categorias
     const allCatTotals: Record<string, number> = {};
     const prevMonthCatTotals: Record<string, number> = {};
     transactions.filter(t => t.type === "expense").forEach((t) => {
@@ -67,13 +66,14 @@ export default function ProjectionPage() {
     topCategories.forEach(({ cat, growth }) => {
       if (growth > 20) insights.push(`Seus gastos com ${cat} aumentaram ${growth.toFixed(0)}% este mês`);
     });
-    
-    // Investment breakdown by category
+
+    // Detalhamento de investimentos
     const investByCategory: Record<string, number> = {};
     transactions.filter(t => t.type === "investment").forEach(t => {
       investByCategory[t.category] = (investByCategory[t.category] || 0) + Number(t.amount);
     });
     const sortedInvestments = Object.entries(investByCategory).sort((a, b) => b[1] - a[1]);
+
     if (avg3Investments > 0 && summary.investments < avg3Investments * 0.8) {
       insights.push("Você investiu menos do que a média dos últimos 3 meses");
     }
@@ -81,26 +81,25 @@ export default function ProjectionPage() {
       insights.push("Ótimo! Você está com mais de 30% da renda disponível");
     }
 
-    // Projections
+    // Projeção simplificada: linear baseada na poupança média
     const monthlySaving = summary.totalIncome - avg3Expenses - avg3Investments;
-    const monthlyRate = 0.008; // 0.8% a.m.
+    const currentBalance = summary.available;
+    const currentInvested = totalInvestedAll;
 
     const projectionData = Array.from({ length: months + 1 }, (_, i) => {
-      const projSaldo = monthlySaving * i;
-      const projInvestFV = avg3Investments > 0
-        ? avg3Investments * ((Math.pow(1 + monthlyRate, i) - 1) / monthlyRate)
-        : 0;
-      const projInvest10 = (avg3Investments * 1.1) > 0
-        ? (avg3Investments * 1.1) * ((Math.pow(1 + monthlyRate, i) - 1) / monthlyRate)
-        : 0;
+      const projBalance = currentBalance + (monthlySaving * i);
+      const projInvested = currentInvested + (avg3Investments * i);
+      const projTotal = projBalance + projInvested;
+
       return {
         label: i === 0 ? "Hoje" : `M${i}`,
-        patrimonio: Math.round(totalInvestedAll + projInvestFV + projSaldo),
-        patrimonio10: Math.round(totalInvestedAll + projInvest10 + projSaldo),
+        saldo: Math.round(projBalance),
+        investido: Math.round(projInvested),
+        total: Math.round(projTotal),
       };
     });
 
-    // Goal projections
+    // Projeções de metas
     const goalProjections = goals
       .filter(g => Number(g.saved_amount) < Number(g.target_amount))
       .map((g) => {
@@ -112,11 +111,17 @@ export default function ProjectionPage() {
 
     return {
       currentMonthData,
-      avg3Expenses, avg6Expenses, avg3Investments,
-      totalInvestedAll, investPct,
-      topCategories, insights,
-      projectionData, goalProjections, monthlySaving,
+      avg3Expenses,
+      avg3Investments,
+      totalInvestedAll,
+      investPct,
+      topCategories,
+      insights,
+      projectionData,
+      goalProjections,
+      monthlySaving,
       sortedInvestments,
+      currentBalance,
     };
   }, [transactions, goals, summary, months]);
 
@@ -128,45 +133,38 @@ export default function ProjectionPage() {
         <h1 className="text-xl font-semibold text-foreground">Projeção Financeira</h1>
       </div>
 
-      {/* Summary panel */}
+      {/* Summary Cards */}
       <div className="px-5 grid grid-cols-2 gap-3 mb-5">
         <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">Gasto este mês</p>
-          <p className="text-lg font-semibold text-destructive font-mono">{formatShortCurrency(analysis.currentMonthData.expenses)}</p>
+          <p className="text-[11px] text-muted-foreground mb-1">Saldo atual</p>
+          <p className="text-lg font-semibold text-success font-mono">{formatShortCurrency(analysis.currentBalance)}</p>
         </div>
         <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">Média 3 meses</p>
-          <p className="text-lg font-semibold text-foreground font-mono">{formatShortCurrency(analysis.avg3Expenses)}</p>
-        </div>
-        <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">Investido este mês</p>
-          <p className="text-lg font-semibold text-accent font-mono">{formatShortCurrency(summary.investments)}</p>
-        </div>
-        <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">Total investido</p>
+          <p className="text-[11px] text-muted-foreground mb-1">Investido</p>
           <p className="text-lg font-semibold text-accent font-mono">{formatShortCurrency(analysis.totalInvestedAll)}</p>
         </div>
         <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">Saldo disponível</p>
-          <p className="text-lg font-semibold text-success font-mono">{formatShortCurrency(summary.available)}</p>
+          <p className="text-[11px] text-muted-foreground mb-1">Gasto médio/mês</p>
+          <p className="text-lg font-semibold text-destructive font-mono">{formatShortCurrency(analysis.avg3Expenses)}</p>
         </div>
         <div className="glass-card p-3.5">
-          <p className="text-[11px] text-muted-foreground mb-1">% Renda → Invest.</p>
-          <p className="text-lg font-semibold text-accent font-mono">{analysis.investPct.toFixed(1)}%</p>
+          <p className="text-[11px] text-muted-foreground mb-1">Poupança média/mês</p>
+          <p className={`text-lg font-semibold font-mono ${analysis.monthlySaving > 0 ? "text-success" : "text-destructive"}`}>
+            {analysis.monthlySaving > 0 ? "+" : ""}{formatShortCurrency(analysis.monthlySaving)}
+          </p>
         </div>
       </div>
 
-      {/* Investment Breakdown */}
+      {/* Detalhamento de Patrimônio */}
       {analysis.sortedInvestments.length > 0 && (
         <>
-          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">💼 Detalhamento de Patrimônio</p>
+          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">💼 Carteira de Investimentos</p>
           <div className="px-5 space-y-2 mb-5">
-            <div className="glass-card p-4 mb-2 bg-accent/5 border-accent/20">
+            <div className="glass-card p-4 bg-accent/5 border-accent/20">
               <div className="flex justify-between items-center">
-                <p className="text-sm font-medium text-foreground">Patrimônio Total</p>
-                <p className="text-lg font-bold text-accent font-mono">{formatShortCurrency(summary.available + summary.investments)}</p>
+                <p className="text-sm font-medium text-foreground">Total Investido</p>
+                <p className="text-lg font-bold text-accent font-mono">{formatShortCurrency(analysis.totalInvestedAll)}</p>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Soma do saldo disponível e todos os investimentos</p>
             </div>
             {analysis.sortedInvestments.map(([cat, val]) => (
               <div key={cat} className="glass-card flex items-center gap-3 p-3.5">
@@ -181,10 +179,10 @@ export default function ProjectionPage() {
         </>
       )}
 
-      {/* Where to improve */}
+      {/* Onde Melhorar */}
       {analysis.topCategories.length > 0 && (
         <>
-          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">📊 Onde melhorar (Gastos)</p>
+          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">📊 Gastos Principais</p>
           <div className="px-5 space-y-2 mb-5">
             {analysis.topCategories.map(({ cat, val, growth }) => (
               <div key={cat} className={`glass-card flex items-center gap-3 p-3.5 ${growth > 20 ? "ring-1 ring-warning/40" : ""}`}>
@@ -215,10 +213,10 @@ export default function ProjectionPage() {
         </div>
       )}
 
-      {/* Projection chart */}
+      {/* Projeção de Patrimônio */}
       <div className="px-5 mb-4">
         <div className="flex items-center gap-3 mb-3">
-          <span className="text-sm font-semibold text-foreground/80">📈 Projeção de patrimônio</span>
+          <span className="text-sm font-semibold text-foreground/80">📈 Projeção de Patrimônio</span>
         </div>
         <div className="flex items-center gap-3 mb-3">
           <span className="text-[13px] text-muted-foreground">Horizonte:</span>
@@ -228,57 +226,48 @@ export default function ProjectionPage() {
       </div>
 
       <div className="mx-5 glass-card p-4 mb-5">
-        <p className="text-[11px] text-muted-foreground mb-1">Patrimônio = saldo disponível + carteira de investimentos</p>
-        <ResponsiveContainer width="100%" height={200}>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Baseado na poupança média de <span className="font-semibold">{formatShortCurrency(analysis.monthlySaving)}/mês</span>
+        </p>
+        <ResponsiveContainer width="100%" height={220}>
           <LineChart data={analysis.projectionData}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 10 }} interval={Math.floor(months / 6)} />
             <YAxis tick={{ fill: "#64748b", fontSize: 10 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ background: "#0d1526", border: "1px solid #162240", borderRadius: 8, fontSize: 12 }} />
-            <Line type="monotone" dataKey="patrimonio" stroke="#4ade80" strokeWidth={2} dot={false} name="Atual" />
-            <Line type="monotone" dataKey="patrimonio10" stroke="#a78bfa" strokeWidth={2} dot={false} strokeDasharray="5 5" name="+10% aportes" />
+            <Tooltip 
+              contentStyle={{ background: "#0d1526", border: "1px solid #162240", borderRadius: 8, fontSize: 12 }}
+              formatter={(value: number) => formatShortCurrency(value)}
+            />
+            <Line type="monotone" dataKey="saldo" stroke="#4ade80" strokeWidth={2} dot={false} name="Saldo" />
+            <Line type="monotone" dataKey="investido" stroke="#38bdf8" strokeWidth={2} dot={false} name="Investido" />
+            <Line type="monotone" dataKey="total" stroke="#a78bfa" strokeWidth={2} dot={false} strokeDasharray="5 5" name="Total" />
           </LineChart>
         </ResponsiveContainer>
-        <div className="flex gap-4 mt-2 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-[2px] bg-success inline-block" />Se continuar assim</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-[2px] bg-[#a78bfa] inline-block" style={{ borderTop: "2px dashed #a78bfa", height: 0 }} />+10% aportes</span>
+        <div className="flex gap-4 mt-3 text-[11px] text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-[2px] bg-success inline-block" />Saldo disponível</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-[2px] bg-accent inline-block" />Investimentos</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-[2px] bg-purple-400 inline-block" />Patrimônio total</span>
         </div>
       </div>
 
-      {/* Scenarios */}
-      <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">🎯 Projeção por período</p>
-      <div className="px-5 grid grid-cols-2 gap-3 mb-5">
-        {[3, 6, 12, 24].map((m) => {
-          const monthlyRate = 0.008;
-          const investFV = analysis.avg3Investments > 0
-            ? analysis.avg3Investments * ((Math.pow(1 + monthlyRate, m) - 1) / monthlyRate)
-            : 0;
-          const total = analysis.totalInvestedAll + investFV + (analysis.monthlySaving * m);
-          return (
-            <div key={m} className="glass-card p-3.5">
-              <p className="text-[11px] text-muted-foreground">{m} meses</p>
-              <p className="text-sm font-semibold text-foreground font-mono mt-1">{formatShortCurrency(total)}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Goal projections */}
+      {/* Metas */}
       {analysis.goalProjections.length > 0 && (
         <>
-          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">🏁 Previsão de metas</p>
-          <div className="px-5 space-y-2.5 mb-5">
-            {analysis.goalProjections.map((g) => (
-              <div key={g.name} className="glass-card flex items-center gap-3 p-3.5">
-                <span className="text-lg">{g.icon}</span>
-                <div className="flex-1">
-                  <p className="text-[13px] font-medium text-foreground">{g.name}</p>
-                  <p className="text-xs text-muted-foreground">Faltam {formatShortCurrency(g.remaining)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[13px] font-semibold text-accent font-mono">
-                    {g.monthsNeeded === Infinity ? "—" : `~${g.monthsNeeded} meses`}
+          <p className="text-sm font-semibold text-foreground/80 px-5 mb-3">🎯 Projeção de Metas</p>
+          <div className="px-5 space-y-2 mb-5">
+            {analysis.goalProjections.map((goal) => (
+              <div key={goal.name} className="glass-card p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{goal.icon} {goal.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Faltam {formatShortCurrency(goal.remaining)}</p>
+                  </div>
+                  <p className="text-xs font-semibold text-accent">
+                    {goal.monthsNeeded === Infinity ? "∞" : `${goal.monthsNeeded}m`}
                   </p>
+                </div>
+                <div className="h-2 bg-foreground/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-accent rounded-full" style={{ width: `${Math.min((goal.monthlyForGoal / goal.remaining) * 100, 100)}%` }} />
                 </div>
               </div>
             ))}
