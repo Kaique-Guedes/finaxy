@@ -8,6 +8,7 @@ export default function CategoriesPage() {
   const { data: transactions = [] } = useTransactions();
   const addCategory = useAddCategory();
   const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏷");
