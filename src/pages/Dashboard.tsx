@@ -13,8 +13,8 @@ import { Loader2 } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data: profile, refetch: refetchProfile } = useProfile();
-  const { data: transactions = [], isLoading } = useTransactions();
+  const { data: profile, refetch: refetchProfile, isError: profileError } = useProfile();
+  const { data: transactions = [], isLoading, isError: txError } = useTransactions();
   const { data: categories = [] } = useCategories();
   const addTx = useAddTransaction();
   const deleteTx = useDeleteTransaction();
@@ -24,13 +24,17 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   // Auto-create recurring salary entry for current month
-  useEnsureMonthlySalary();
+  try {
+    useEnsureMonthlySalary();
+  } catch (e) {
+    console.error("Error in useEnsureMonthlySalary:", e);
+  }
 
   const name = profile?.name || user?.email?.split("@")[0] || "Usuário";
   const initials = getInitials(name);
   const hasSalary = Number(profile?.monthly_salary || 0) > 0;
 
-  const monthTransactions = transactions.filter((t) => getMonthKey(t.date) === monthKey);
+  const monthTransactions = transactions.filter((t) => t && t.date && getMonthKey(t.date) === monthKey);
 
   const handleEditTransaction = (tx: Transaction) => {
     setEditingTransaction(tx);
@@ -46,6 +50,20 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (profileError || txError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-5 text-center">
+        <p className="text-muted-foreground mb-4">Ocorreu um erro ao carregar seus dados.</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-primary text-foreground rounded-lg"
+        >
+          Tentar novamente
+        </button>
       </div>
     );
   }

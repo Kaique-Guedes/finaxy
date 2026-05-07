@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatShortCurrency, formatDate } from "@/lib/format";
 import { Transaction, useUpdateTransaction } from "@/hooks/useFinanceData";
 import { Trash2, Check, Repeat, Edit2 } from "lucide-react";
+import { toast } from "sonner";
 
 const catColors: Record<string, string> = {
   Alimentação: "#f87171", Transporte: "#fb923c", Moradia: "#a78bfa",
@@ -18,118 +19,59 @@ const catIcons: Record<string, string> = {
   Saúde: "💊", Lazer: "🎮", Educação: "📚",
   Vestuário: "👔", "Renda Extra": "💰", Salário: "💼",
   "Reserva de Emergência": "🛡️", "Investimentos Futuros": "🚀",
-  "Renda Fixa": "🏦", "Renda Variável": "📊",
-  Fundos: "💼", Criptomoedas: "₿", Previdência: "🛡",
-  Outros: "💰",
+  "Renda Fixa": "📈", "Renda Variável": "📉", Fundos: "🏢",
+  Criptomoedas: "₿", Previdência: "👴", Outros: "📦",
 };
 
-const recurrenceLabels: Record<string, string> = {
-  monthly: "Fixo", variable: "Variável", once: "Único",
+const typeLabels = {
+  income: "Receita",
+  expense: "Gasto",
+  investment: "Investimento",
 };
 
-const typeLabels: Record<string, string> = {
-  expense: "Gasto", income: "Renda Extra", investment: "Investimento",
+const recurrenceLabels = {
+  once: "Única",
+  monthly: "Mensal",
+  variable: "Variável",
 };
-
-type TypeFilter = "all" | "income" | "expense" | "investment";
-type PaidFilter = "all" | "paid" | "pending";
 
 interface Props {
   transactions: Transaction[];
   onDelete?: (id: string) => void;
-  onEdit?: (transaction: Transaction) => void;
+  onEdit?: (tx: Transaction) => void;
 }
 
-export default function TransactionList({ transactions, onDelete, onEdit }: Props) {
-  const [filter, setFilter] = useState<TypeFilter>("all");
-  const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+export default function TransactionList({ transactions = [], onDelete, onEdit }: Props) {
+  const [filter, setFilter] = useState<"all" | "income" | "expense" | "investment">("all");
+  const [paidFilter, setPaidFilter] = useState<"all" | "pending" | "paid">("all");
   const updateTx = useUpdateTransaction();
 
   const filtered = transactions.filter((t) => {
-    if (filter !== "all" && t.type !== filter) return false;
-    if (paidFilter !== "all" && t.type === "expense") {
-      if (paidFilter === "paid" && !t.paid) return false;
-      if (paidFilter === "pending" && t.paid) return false;
-    }
-    return true;
+    if (!t) return false;
+    const typeMatch = filter === "all" || t.type === filter;
+    const paidMatch =
+      paidFilter === "all" ||
+      (paidFilter === "paid" && t.paid) ||
+      (paidFilter === "pending" && !t.paid);
+    return typeMatch && paidMatch;
   });
 
-  const expenses = transactions.filter((t) => t.type === "expense");
-  const totalPaid = expenses.filter((t) => t.paid).reduce((s, t) => s + Number(t.amount), 0);
-  const totalPending = expenses.filter((t) => !t.paid).reduce((s, t) => s + Number(t.amount), 0);
-
   const handleDeleteClick = (t: Transaction) => {
-    if (!onDelete) return;
     if (t.is_recurring) {
-      // Exige confirmação para transações recorrentes (ex: salário)
-      setConfirmDeleteId(t.id);
+      if (window.confirm("Esta é uma transação automática (Salário). Tem certeza que deseja excluí-la?")) {
+        onDelete?.(t.id);
+      }
     } else {
-      onDelete(t.id);
+      onDelete?.(t.id);
     }
   };
-
-  const handleConfirmDelete = () => {
-    if (confirmDeleteId && onDelete) {
-      onDelete(confirmDeleteId);
-    }
-    setConfirmDeleteId(null);
-  };
-
-  const confirmTransaction = transactions.find((t) => t.id === confirmDeleteId);
 
   return (
-    <div>
-      {/* Modal de confirmação para exclusão de transações recorrentes */}
-      {confirmDeleteId && confirmTransaction && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-5">
-          <div className="glass-card w-full max-w-sm p-5 rounded-2xl flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <p className="text-base font-semibold text-foreground">Excluir lançamento?</p>
-              <p className="text-sm text-muted-foreground">
-                Você está prestes a excluir{" "}
-                <span className="font-medium text-foreground">"{confirmTransaction.description}"</span>{" "}
-                ({formatShortCurrency(Number(confirmTransaction.amount))}).
-              </p>
-              <p className="text-xs text-amber-400 mt-1">
-                ⚠️ Esta é uma transação recorrente. Apenas o lançamento deste mês será removido.
-              </p>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-destructive text-white hover:bg-destructive/80 transition-colors"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {expenses.length > 0 && (
-        <div className="mx-5 mt-5 flex gap-2.5">
-          <div className="flex-1 glass-card p-3">
-            <p className="text-[11px] text-muted-foreground">✓ Pago no mês</p>
-            <p className="text-sm font-semibold font-mono text-success mt-0.5">{formatShortCurrency(totalPaid)}</p>
-          </div>
-          <div className="flex-1 glass-card p-3">
-            <p className="text-[11px] text-muted-foreground">⏳ Pendente</p>
-            <p className="text-sm font-semibold font-mono text-destructive mt-0.5">{formatShortCurrency(totalPending)}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center px-5 mt-6 mb-3 flex-wrap gap-2">
-        <span className="text-sm font-semibold text-foreground/80">Transações</span>
+    <div className="mt-6 pb-10">
+      <div className="px-5 flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-foreground/80">Transações</h2>
         <div className="flex gap-1">
-          {(["all", "expense", "income", "investment"] as const).map((f) => (
+          {(["all", "income", "expense", "investment"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -162,9 +104,11 @@ export default function TransactionList({ transactions, onDelete, onEdit }: Prop
           <p className="text-sm text-muted-foreground text-center py-8">Nenhuma transação encontrada</p>
         )}
         {filtered.map((t) => {
-          const isGoalContrib = t.category.startsWith("Aporte:");
+          if (!t) return null;
+          const isGoalContrib = t.category?.startsWith("Aporte:");
           const isExpense = t.type === "expense";
           const isPaid = t.paid;
+          
           return (
             <div key={t.id} className={`glass-card flex items-center gap-3 p-3.5 group transition-opacity ${isExpense && isPaid ? "opacity-60" : ""}`}>
               {isExpense && (
@@ -178,12 +122,14 @@ export default function TransactionList({ transactions, onDelete, onEdit }: Prop
                   {isPaid && <Check className="w-3.5 h-3.5" />}
                 </button>
               )}
+              
               <div
                 className="w-[42px] h-[42px] rounded-xl flex items-center justify-center text-lg flex-none"
                 style={{ background: (catColors[t.category] || (isGoalContrib ? "#3b82f6" : "#64748b")) + "22" }}
               >
                 {isGoalContrib ? "🎯" : catIcons[t.category] || "💰"}
               </div>
+
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className={`text-sm font-medium text-foreground truncate ${isExpense && isPaid ? "line-through" : ""}`}>{t.description}</p>
@@ -194,10 +140,11 @@ export default function TransactionList({ transactions, onDelete, onEdit }: Prop
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {t.category} · {t.type === "expense" ? recurrenceLabels[t.recurrence] || t.recurrence : typeLabels[t.type]}
+                  {t.category} · {t.type === "expense" ? recurrenceLabels[t.recurrence as keyof typeof recurrenceLabels] || t.recurrence : typeLabels[t.type as keyof typeof typeLabels]}
                   {isExpense && (isPaid ? " · ✓ Pago" : " · ⏳ Pendente")}
                 </p>
               </div>
+
               <div className="text-right flex-none">
                 <p className={`text-sm font-semibold font-mono ${
                   t.type === "expense" ? "text-destructive" : t.type === "investment" ? "text-accent" : "text-success"
@@ -206,11 +153,12 @@ export default function TransactionList({ transactions, onDelete, onEdit }: Prop
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(t.date)}</p>
               </div>
+
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {onEdit && !t.is_recurring && (
+                {onEdit && (
                   <button
                     onClick={() => onEdit(t)}
-                    className="text-muted-foreground hover:text-primary transition-colors"
+                    className="text-muted-foreground hover:text-primary transition-colors p-1"
                     aria-label="Editar transação"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -219,7 +167,7 @@ export default function TransactionList({ transactions, onDelete, onEdit }: Prop
                 {onDelete && (
                   <button
                     onClick={() => handleDeleteClick(t)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1"
                     aria-label="Excluir transação"
                   >
                     <Trash2 className="w-4 h-4" />
