@@ -270,13 +270,24 @@ export function useDeleteGoal() {
 }
 
 // ---- Finance helpers ----
-export function useFinanceSummary() {
+export function getMonthKey(d: Date | string): string {
+  const date = typeof d === "string" ? new Date(d + (d.length <= 10 ? "T12:00" : "")) : d;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function useFinanceSummary(monthKey?: string) {
   const { data: profile } = useProfile();
-  const { data: transactions = [] } = useTransactions();
+  const { data: allTx = [] } = useTransactions();
+
+  const key = monthKey || getMonthKey(new Date());
+  const transactions = allTx.filter((t) => getMonthKey(t.date) === key);
 
   const salary = Number(profile?.monthly_salary || 0);
+  const salaryRecurring = transactions
+    .filter((t) => t.type === "income" && t.is_recurring)
+    .reduce((s, t) => s + Number(t.amount), 0);
   const extraIncome = transactions
-    .filter((t) => t.type === "income")
+    .filter((t) => t.type === "income" && !t.is_recurring)
     .reduce((s, t) => s + Number(t.amount), 0);
   const fixedExpenses = transactions
     .filter((t) => t.type === "expense" && t.recurrence === "monthly")
@@ -285,11 +296,15 @@ export function useFinanceSummary() {
     .filter((t) => t.type === "expense" && t.recurrence !== "monthly")
     .reduce((s, t) => s + Number(t.amount), 0);
   const totalExpenses = fixedExpenses + variableExpenses;
+  const paidExpenses = transactions
+    .filter((t) => t.type === "expense" && t.paid)
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const pendingExpenses = totalExpenses - paidExpenses;
   const investments = transactions
     .filter((t) => t.type === "investment")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const totalIncome = salary + extraIncome;
+  const totalIncome = salaryRecurring + extraIncome || salary + extraIncome;
   const available = totalIncome - totalExpenses - investments;
 
   return {
@@ -299,7 +314,53 @@ export function useFinanceSummary() {
     fixedExpenses,
     variableExpenses,
     totalExpenses,
+    paidExpenses,
+    pendingExpenses,
     investments,
     available,
+    transactions,
   };
 }
+
+// Auto-create recurring salary entry for the current month if missing
+export function useEnsureMonthlySalary() {
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
+  const { data: allTx = [] } = useTransactions();
+  const qc = useQueryClient();
+
+  const salary = Number(profile?.monthly_salary || 0);
+  const monthKey = getMonthKey(new Date());
+
+  const hasSalaryThisMonth = allTx.some(
+    (t) => t.is_recurring && t.type === "income" && getMonthKey(t.date) === monthKey
+  );
+
+  // Effect-style: trigger insert once
+  if (user && salary > 0 && !hasSalaryThisMonth && allTx.length >= 0) {
+    const firstOfMonth = `${monthKey}-01`;
+    // Check we haven't already attempted this exact insert
+    const flagKey = `salary-inserted-${user.id}-${monthKey}`;
+    if (typeof window !== "undefined" && !sessionStorage.getItem(flagKey)) {
+      sessionStorage.setItem(flagKey, "1");
+      supabase
+        .from("transactions")
+        .insert({
+          user_id: user.id,
+          type: "income",
+          description: "Salário mensal",
+          amount: salary,
+          category: "Salário",
+          date: firstOfMonth,
+          recurrence: "monthly",
+          is_recurring: true,
+          paid: true,
+        })
+        .then(({ error }) => {
+          if (!error) qc.invalidateQueries({ queryKey: ["transactions"] });
+          else console.error("Auto salary insert error:", error);
+        });
+    }
+  }
+}
+
