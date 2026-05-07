@@ -118,6 +118,8 @@ export type Database = {
           date: string
           description: string
           id: string
+          is_recurring: boolean
+          paid: boolean
           recurrence: string
           type: string
           user_id: string
@@ -129,6 +131,8 @@ export type Database = {
           date?: string
           description: string
           id?: string
+          is_recurring?: boolean
+          paid?: boolean
           recurrence?: string
           type: string
           user_id: string
@@ -140,6 +144,8 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          is_recurring?: boolean
+          paid?: boolean
           recurrence?: string
           type?: string
           user_id?: string

@@ -12,17 +12,25 @@ const investmentCategories = [
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSave: (tx: { type: TxType; description: string; amount: number; category: string; date: string; recurrence: "once" | "monthly" | "variable" }) => void;
+  onSave: (tx: { type: TxType; description: string; amount: number; category: string; date: string; recurrence: "once" | "monthly" | "variable"; paid?: boolean }) => void;
   categories: Category[];
+  defaultMonthKey?: string;
 }
 
-export default function AddTransactionModal({ open, onClose, onSave, categories }: Props) {
+function defaultDateForMonth(monthKey?: string) {
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  if (!monthKey || monthKey === todayKey) return today.toISOString().slice(0, 10);
+  return `${monthKey}-01`;
+}
+
+export default function AddTransactionModal({ open, onClose, onSave, categories, defaultMonthKey }: Props) {
   const [type, setType] = useState<TxType>("expense");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [investCategory, setInvestCategory] = useState("Renda Fixa");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(defaultDateForMonth(defaultMonthKey));
   const [recurrence, setRecurrence] = useState<"once" | "monthly" | "variable">("once");
   const [isGoalContribution, setIsGoalContribution] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState("");
@@ -77,6 +85,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
       category: defaultCat,
       date,
       recurrence: type === "investment" || isGoalContribution ? "once" : recurrence,
+      paid: type === "expense" && !isGoalContribution ? false : true,
     });
     resetForm();
     onClose();
@@ -87,7 +96,7 @@ export default function AddTransactionModal({ open, onClose, onSave, categories 
     setAmount("");
     setCategory("");
     setInvestCategory("Reserva de Emergência");
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(defaultDateForMonth(defaultMonthKey));
     setRecurrence("once");
     setIsGoalContribution(false);
     setSelectedGoalId("");
