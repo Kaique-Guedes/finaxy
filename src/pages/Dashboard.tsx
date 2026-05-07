@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile, useTransactions, useCategories, useAddTransaction, useDeleteTransaction, useEnsureMonthlySalary, getMonthKey } from "@/hooks/useFinanceData";
+import { useProfile, useTransactions, useCategories, useAddTransaction, useDeleteTransaction, useEnsureMonthlySalary, getMonthKey, Transaction } from "@/hooks/useFinanceData";
 import { getGreeting, getInitials } from "@/lib/format";
 import BalanceCard from "@/components/BalanceCard";
 import QuickActions from "@/components/QuickActions";
@@ -20,6 +20,7 @@ export default function Dashboard() {
   const deleteTx = useDeleteTransaction();
   const [modalOpen, setModalOpen] = useState(false);
   const [monthKey, setMonthKey] = useState<string>(getMonthKey(new Date()));
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const navigate = useNavigate();
 
   // Auto-create recurring salary entry for current month
@@ -30,6 +31,16 @@ export default function Dashboard() {
   const hasSalary = Number(profile?.monthly_salary || 0) > 0;
 
   const monthTransactions = transactions.filter((t) => getMonthKey(t.date) === monthKey);
+
+  const handleEditTransaction = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setEditingTransaction(null);
+  };
 
   if (isLoading) {
     return (
@@ -62,7 +73,11 @@ export default function Dashboard() {
       <MonthSelector monthKey={monthKey} onChange={setMonthKey} />
       <BalanceCard monthKey={monthKey} />
       <QuickActions onAddTransaction={() => setModalOpen(true)} />
-      <TransactionList transactions={monthTransactions} onDelete={(id) => deleteTx.mutate(id)} />
+      <TransactionList 
+        transactions={monthTransactions} 
+        onDelete={(id) => deleteTx.mutate(id)}
+        onEdit={handleEditTransaction}
+      />
 
       {/* FAB */}
       <button
@@ -74,10 +89,11 @@ export default function Dashboard() {
 
       <AddTransactionModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleCloseModal}
         onSave={(tx) => addTx.mutate(tx)}
         categories={categories}
         defaultMonthKey={monthKey}
+        editingTransaction={editingTransaction}
       />
     </div>
   );

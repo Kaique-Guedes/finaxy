@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatShortCurrency, formatDate } from "@/lib/format";
 import { Transaction, useUpdateTransaction } from "@/hooks/useFinanceData";
-import { Trash2, Check, Repeat } from "lucide-react";
+import { Trash2, Check, Repeat, Edit2 } from "lucide-react";
 
 const catColors: Record<string, string> = {
   Alimentação: "#f87171", Transporte: "#fb923c", Moradia: "#a78bfa",
@@ -37,9 +37,10 @@ type PaidFilter = "all" | "paid" | "pending";
 interface Props {
   transactions: Transaction[];
   onDelete?: (id: string) => void;
+  onEdit?: (transaction: Transaction) => void;
 }
 
-export default function TransactionList({ transactions, onDelete }: Props) {
+export default function TransactionList({ transactions, onDelete, onEdit }: Props) {
   const [filter, setFilter] = useState<TypeFilter>("all");
   const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -205,15 +206,26 @@ export default function TransactionList({ transactions, onDelete }: Props) {
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(t.date)}</p>
               </div>
-              {onDelete && (
-                <button
-                  onClick={() => handleDeleteClick(t)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-1"
-                  aria-label="Excluir transação"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {onEdit && !t.is_recurring && (
+                  <button
+                    onClick={() => onEdit(t)}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    aria-label="Editar transação"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={() => handleDeleteClick(t)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label="Excluir transação"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
