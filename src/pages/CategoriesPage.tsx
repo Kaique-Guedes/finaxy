@@ -1,6 +1,6 @@
-import { useCategories, useTransactions, useAddCategory, useUpdateCategory } from "@/hooks/useFinanceData";
+import { useCategories, useTransactions, useAddCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
-import { Loader2, Plus, Pencil, Check, X } from "lucide-react";
+import { Loader2, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 export default function CategoriesPage() {
@@ -8,6 +8,7 @@ export default function CategoriesPage() {
   const { data: transactions = [] } = useTransactions();
   const addCategory = useAddCategory();
   const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏷");
@@ -94,6 +95,14 @@ export default function CategoriesPage() {
                         className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Excluir a categoria "${c.name}"?`)) deleteCategory.mutate(c.id);
+                        }}
+                        className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   )}
