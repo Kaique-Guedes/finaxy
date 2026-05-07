@@ -42,6 +42,7 @@ interface Props {
 export default function TransactionList({ transactions, onDelete }: Props) {
   const [filter, setFilter] = useState<TypeFilter>("all");
   const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const updateTx = useUpdateTransaction();
 
   const filtered = transactions.filter((t) => {
@@ -57,8 +58,60 @@ export default function TransactionList({ transactions, onDelete }: Props) {
   const totalPaid = expenses.filter((t) => t.paid).reduce((s, t) => s + Number(t.amount), 0);
   const totalPending = expenses.filter((t) => !t.paid).reduce((s, t) => s + Number(t.amount), 0);
 
+  const handleDeleteClick = (t: Transaction) => {
+    if (!onDelete) return;
+    if (t.is_recurring) {
+      // Exige confirmação para transações recorrentes (ex: salário)
+      setConfirmDeleteId(t.id);
+    } else {
+      onDelete(t.id);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (confirmDeleteId && onDelete) {
+      onDelete(confirmDeleteId);
+    }
+    setConfirmDeleteId(null);
+  };
+
+  const confirmTransaction = transactions.find((t) => t.id === confirmDeleteId);
+
   return (
     <div>
+      {/* Modal de confirmação para exclusão de transações recorrentes */}
+      {confirmDeleteId && confirmTransaction && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-5">
+          <div className="glass-card w-full max-w-sm p-5 rounded-2xl flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-base font-semibold text-foreground">Excluir lançamento?</p>
+              <p className="text-sm text-muted-foreground">
+                Você está prestes a excluir{" "}
+                <span className="font-medium text-foreground">"{confirmTransaction.description}"</span>{" "}
+                ({formatShortCurrency(Number(confirmTransaction.amount))}).
+              </p>
+              <p className="text-xs text-amber-400 mt-1">
+                ⚠️ Esta é uma transação recorrente. Apenas o lançamento deste mês será removido.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-destructive text-white hover:bg-destructive/80 transition-colors"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {expenses.length > 0 && (
         <div className="mx-5 mt-5 flex gap-2.5">
           <div className="flex-1 glass-card p-3">
@@ -152,10 +205,11 @@ export default function TransactionList({ transactions, onDelete }: Props) {
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(t.date)}</p>
               </div>
-              {onDelete && !t.is_recurring && (
+              {onDelete && (
                 <button
-                  onClick={() => onDelete(t.id)}
+                  onClick={() => handleDeleteClick(t)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-1"
+                  aria-label="Excluir transação"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
@@ -154,6 +155,7 @@ export function useDeleteTransaction() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Transação removida!");
     },
+    onError: () => toast.error("Erro ao remover transação"),
   });
 }
 
@@ -339,21 +341,42 @@ export function useFinanceSummary(monthKey?: string) {
 }
 
 // Auto-create recurring salary entry for the current month if missing
+// Uses useEffect + useRef to garantir que a inserção ocorra apenas UMA vez por mês,
+// evitando duplicações causadas por múltiplas re-renderizações.
 export function useEnsureMonthlySalary() {
   const { user } = useAuth();
   const { data: profile } = useProfile();
-  const { data: allTx = [] } = useTransactions();
+  const { data: allTx = [], isSuccess: txLoaded } = useTransactions();
   const qc = useQueryClient();
+
+  // Ref para rastrear o mês em que já foi feita a inserção nesta sessão
+  const insertedMonthRef = useRef<string | null>(null);
 
   const salary = Number(profile?.monthly_salary || 0);
   const monthKey = getMonthKey(new Date());
 
-  const hasSalaryThisMonth = allTx.some(
-    (t) => t.is_recurring && t.type === "income" && t.description === "Salário mensal" && getMonthKey(t.date) === monthKey
-  );
+  useEffect(() => {
+    // Aguarda os dados carregarem e verifica se já foi inserido nesta sessão
+    if (!user || salary <= 0 || !txLoaded) return;
+    if (insertedMonthRef.current === monthKey) return;
 
-  // Effect-style: trigger insert once if salary is set and not already present for the current month
-  if (user && salary > 0 && !hasSalaryThisMonth) {
+    const hasSalaryThisMonth = allTx.some(
+      (t) =>
+        t.is_recurring &&
+        t.type === "income" &&
+        t.description === "Salário mensal" &&
+        getMonthKey(t.date) === monthKey
+    );
+
+    if (hasSalaryThisMonth) {
+      // Marca como já verificado para não checar de novo nesta sessão
+      insertedMonthRef.current = monthKey;
+      return;
+    }
+
+    // Marca imediatamente para evitar inserções concorrentes
+    insertedMonthRef.current = monthKey;
+
     const firstOfMonth = `${monthKey}-01`;
     supabase
       .from("transactions")
@@ -372,8 +395,11 @@ export function useEnsureMonthlySalary() {
         if (!error) {
           qc.invalidateQueries({ queryKey: ["transactions"] });
           toast.success("Salário mensal adicionado automaticamente!");
+        } else {
+          console.error("Auto salary insert error:", error);
+          // Reseta o ref para permitir nova tentativa em caso de erro
+          insertedMonthRef.current = null;
         }
-        else console.error("Auto salary insert error:", error);
       });
-  }
+  }, [user, salary, monthKey, txLoaded, allTx, qc]);
 }
