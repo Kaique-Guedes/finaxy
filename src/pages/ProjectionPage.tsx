@@ -5,127 +5,129 @@ import { useState, useMemo } from "react";
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 
 export default function ProjectionPage() {
-  const { data: transactions = [], isLoading } = useTransactions();
+  const { data: transactions = [], isLoading, isError } = useTransactions();
   const { data: goals = [] } = useGoals();
   const summary = useFinanceSummary();
   const [months, setMonths] = useState(12);
 
   const analysis = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.toISOString().slice(0, 7);
+    try {
+      const now = new Date();
+      const currentMonth = now.toISOString().slice(0, 7);
 
-    // Agrupar transações por mês
-    const byMonth: Record<string, { expenses: number; investments: number; income: number; byCategory: Record<string, number> }> = {};
-    transactions.forEach((t) => {
-      const m = t.date.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { expenses: 0, investments: 0, income: 0, byCategory: {} };
-      if (t.type === "expense") {
-        byMonth[m].expenses += Number(t.amount);
-        byMonth[m].byCategory[t.category] = (byMonth[m].byCategory[t.category] || 0) + Number(t.amount);
+      // Agrupar transações por mês
+      const byMonth: Record<string, { expenses: number; investments: number; income: number; byCategory: Record<string, number> }> = {};
+      transactions.forEach((t) => {
+        if (!t || !t.date) return;
+        const m = t.date.slice(0, 7);
+        if (!byMonth[m]) byMonth[m] = { expenses: 0, investments: 0, income: 0, byCategory: {} };
+        if (t.type === "expense") {
+          byMonth[m].expenses += Number(t.amount);
+          byMonth[m].byCategory[t.category] = (byMonth[m].byCategory[t.category] || 0) + Number(t.amount);
+        }
+        if (t.type === "investment") byMonth[m].investments += Number(t.amount);
+        if (t.type === "income") byMonth[m].income += Number(t.amount);
+      });
+
+      const sortedMonths = Object.keys(byMonth).sort().reverse();
+      const last3 = sortedMonths.slice(0, 3);
+
+      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+      const currentMonthData = byMonth[currentMonth] || { expenses: 0, investments: 0, income: 0, byCategory: {} };
+      const avg3Expenses = avg(last3.map((m) => byMonth[m].expenses));
+      const avg3Investments = avg(last3.map((m) => byMonth[m].investments));
+      const totalInvestedAll = transactions.filter(t => t && t.type === "investment").reduce((s, t) => s + Number(t.amount), 0);
+      const investPct = (summary?.totalIncome || 0) > 0 ? ((summary?.investments || 0) / summary.totalIncome * 100) : 0;
+
+      // Top 3 categorias
+      const prevMonthCatTotals: Record<string, number> = {};
+      const prevMonth = sortedMonths.find(m => m !== currentMonth);
+      if (prevMonth && byMonth[prevMonth]) {
+        Object.entries(byMonth[prevMonth].byCategory).forEach(([cat, val]) => {
+          prevMonthCatTotals[cat] = val;
+        });
       }
-      if (t.type === "investment") byMonth[m].investments += Number(t.amount);
-      if (t.type === "income") byMonth[m].income += Number(t.amount);
-    });
 
-    const sortedMonths = Object.keys(byMonth).sort().reverse();
-    const last3 = sortedMonths.slice(0, 3);
-    const last6 = sortedMonths.slice(0, 6);
+      const topCategories = Object.entries(currentMonthData.byCategory)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([cat, val]) => {
+          const prev = prevMonthCatTotals[cat] || 0;
+          const growth = prev > 0 ? ((val - prev) / prev) * 100 : 0;
+          return { cat, val, growth };
+        });
 
-    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-    const currentMonthData = byMonth[currentMonth] || { expenses: 0, investments: 0, income: 0, byCategory: {} };
-    const avg3Expenses = avg(last3.map((m) => byMonth[m].expenses));
-    const avg3Investments = avg(last3.map((m) => byMonth[m].investments));
-    const totalInvestedAll = transactions.filter(t => t.type === "investment").reduce((s, t) => s + Number(t.amount), 0);
-    const investPct = summary.totalIncome > 0 ? (summary.investments / summary.totalIncome * 100) : 0;
-
-    // Top 3 categorias
-    const allCatTotals: Record<string, number> = {};
-    const prevMonthCatTotals: Record<string, number> = {};
-    transactions.filter(t => t.type === "expense").forEach((t) => {
-      allCatTotals[t.category] = (allCatTotals[t.category] || 0) + Number(t.amount);
-    });
-    const prevMonth = sortedMonths.find(m => m !== currentMonth);
-    if (prevMonth && byMonth[prevMonth]) {
-      Object.entries(byMonth[prevMonth].byCategory).forEach(([cat, val]) => {
-        prevMonthCatTotals[cat] = val;
-      });
-    }
-
-    const topCategories = Object.entries(currentMonthData.byCategory)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([cat, val]) => {
-        const prev = prevMonthCatTotals[cat] || 0;
-        const growth = prev > 0 ? ((val - prev) / prev) * 100 : 0;
-        return { cat, val, growth };
+      // Insights
+      const insights: string[] = [];
+      topCategories.forEach(({ cat, growth }) => {
+        if (growth > 20) insights.push(`Seus gastos com ${cat} aumentaram ${growth.toFixed(0)}% este mês`);
       });
 
-    // Insights
-    const insights: string[] = [];
-    topCategories.forEach(({ cat, growth }) => {
-      if (growth > 20) insights.push(`Seus gastos com ${cat} aumentaram ${growth.toFixed(0)}% este mês`);
-    });
+      // Detalhamento de investimentos
+      const investByCategory: Record<string, number> = {};
+      transactions.filter(t => t && t.type === "investment").forEach(t => {
+        investByCategory[t.category] = (investByCategory[t.category] || 0) + Number(t.amount);
+      });
+      const sortedInvestments = Object.entries(investByCategory).sort((a, b) => b[1] - a[1]);
 
-    // Detalhamento de investimentos
-    const investByCategory: Record<string, number> = {};
-    transactions.filter(t => t.type === "investment").forEach(t => {
-      investByCategory[t.category] = (investByCategory[t.category] || 0) + Number(t.amount);
-    });
-    const sortedInvestments = Object.entries(investByCategory).sort((a, b) => b[1] - a[1]);
+      if (avg3Investments > 0 && (summary?.investments || 0) < avg3Investments * 0.8) {
+        insights.push("Você investiu menos do que a média dos últimos 3 meses");
+      }
+      if ((summary?.available || 0) > (summary?.totalIncome || 0) * 0.3) {
+        insights.push("Ótimo! Você está com mais de 30% da renda disponível");
+      }
 
-    if (avg3Investments > 0 && summary.investments < avg3Investments * 0.8) {
-      insights.push("Você investiu menos do que a média dos últimos 3 meses");
-    }
-    if (summary.available > summary.totalIncome * 0.3) {
-      insights.push("Ótimo! Você está com mais de 30% da renda disponível");
-    }
+      // Projeção simplificada
+      const monthlySaving = (summary?.totalIncome || 0) - avg3Expenses - avg3Investments;
+      const currentBalance = summary?.available || 0;
+      const currentInvested = totalInvestedAll;
 
-    // Projeção simplificada: linear baseada na poupança média
-    const monthlySaving = summary.totalIncome - avg3Expenses - avg3Investments;
-    const currentBalance = summary.available;
-    const currentInvested = totalInvestedAll;
+      const projectionData = Array.from({ length: months + 1 }, (_, i) => {
+        const projBalance = currentBalance + (monthlySaving * i);
+        const projInvested = currentInvested + (avg3Investments * i);
+        const projTotal = projBalance + projInvested;
 
-    const projectionData = Array.from({ length: months + 1 }, (_, i) => {
-      const projBalance = currentBalance + (monthlySaving * i);
-      const projInvested = currentInvested + (avg3Investments * i);
-      const projTotal = projBalance + projInvested;
+        return {
+          label: i === 0 ? "Hoje" : `M${i}`,
+          saldo: Math.round(projBalance),
+          investido: Math.round(projInvested),
+          total: Math.round(projTotal),
+        };
+      });
+
+      // Projeções de metas
+      const goalProjections = goals
+        .filter(g => g && Number(g.saved_amount) < Number(g.target_amount))
+        .map((g) => {
+          const remaining = Number(g.target_amount) - Number(g.saved_amount);
+          const monthlyForGoal = remaining / (g.months || 1);
+          const monthsNeeded = monthlySaving > 0 ? Math.ceil(remaining / monthlySaving) : Infinity;
+          return { name: g.name, icon: g.icon, remaining, monthlyForGoal, monthsNeeded };
+        });
 
       return {
-        label: i === 0 ? "Hoje" : `M${i}`,
-        saldo: Math.round(projBalance),
-        investido: Math.round(projInvested),
-        total: Math.round(projTotal),
+        currentMonthData,
+        avg3Expenses,
+        avg3Investments,
+        totalInvestedAll,
+        investPct,
+        topCategories,
+        insights,
+        projectionData,
+        goalProjections,
+        monthlySaving,
+        sortedInvestments,
+        currentBalance,
       };
-    });
-
-    // Projeções de metas
-    const goalProjections = goals
-      .filter(g => Number(g.saved_amount) < Number(g.target_amount))
-      .map((g) => {
-        const remaining = Number(g.target_amount) - Number(g.saved_amount);
-        const monthlyForGoal = remaining / g.months;
-        const monthsNeeded = monthlySaving > 0 ? Math.ceil(remaining / monthlySaving) : Infinity;
-        return { name: g.name, icon: g.icon, remaining, monthlyForGoal, monthsNeeded };
-      });
-
-    return {
-      currentMonthData,
-      avg3Expenses,
-      avg3Investments,
-      totalInvestedAll,
-      investPct,
-      topCategories,
-      insights,
-      projectionData,
-      goalProjections,
-      monthlySaving,
-      sortedInvestments,
-      currentBalance,
-    };
+    } catch (err) {
+      console.error("Error in ProjectionPage analysis:", err);
+      return null;
+    }
   }, [transactions, goals, summary, months]);
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+  if (isError || !analysis) return <div className="p-10 text-center text-muted-foreground">Ocorreu um erro ao carregar as projeções.</div>;
 
   return (
     <div className="pb-24 animate-fade-in">

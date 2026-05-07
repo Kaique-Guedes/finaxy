@@ -16,95 +16,113 @@ const catColors: Record<string, string> = {
 
 type PeriodType = "month" | "quarter" | "semester" | "year";
 
+function getPeriodLabel(period: PeriodType): string {
+  const labels: Record<PeriodType, string> = {
+    month: "Mês",
+    quarter: "Trimestre",
+    semester: "Semestre",
+    year: "Ano",
+  };
+  return labels[period];
+}
+
 export default function StatsPage() {
-  const { data: transactions = [], isLoading } = useTransactions();
+  const { data: transactions = [], isLoading, isError } = useTransactions();
   const summary = useFinanceSummary();
   const [period, setPeriod] = useState<PeriodType>("month");
 
   const analysis = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
 
-    // Determinar o intervalo de datas baseado no período
-    let startDate: Date;
-    let endDate = new Date(now);
+      // Determinar o intervalo de datas baseado no período
+      let startDate: Date;
+      let endDate = new Date(now);
 
-    if (period === "month") {
-      startDate = new Date(currentYear, currentMonth, 1);
-    } else if (period === "quarter") {
-      const quarterStart = Math.floor(currentMonth / 3) * 3;
-      startDate = new Date(currentYear, quarterStart, 1);
-    } else if (period === "semester") {
-      const semesterStart = currentMonth >= 6 ? 6 : 0;
-      startDate = new Date(currentYear, semesterStart, 1);
-    } else {
-      // year
-      startDate = new Date(currentYear, 0, 1);
+      if (period === "month") {
+        startDate = new Date(currentYear, currentMonth, 1);
+      } else if (period === "quarter") {
+        const quarterStart = Math.floor(currentMonth / 3) * 3;
+        startDate = new Date(currentYear, quarterStart, 1);
+      } else if (period === "semester") {
+        const semesterStart = currentMonth >= 6 ? 6 : 0;
+        startDate = new Date(currentYear, semesterStart, 1);
+      } else {
+        // year
+        startDate = new Date(currentYear, 0, 1);
+      }
+
+      const startStr = startDate.toISOString().slice(0, 10);
+      const endStr = endDate.toISOString().slice(0, 10);
+
+      // Filtrar transações dentro do período
+      const filteredTxs = transactions.filter((t) => t && t.date && t.date >= startStr && t.date <= endStr);
+
+      // Agrupar por categoria (gastos)
+      const byCategory: Record<string, number> = {};
+      filteredTxs.filter((t) => t.type === "expense").forEach((t) => {
+        byCategory[t.category] = (byCategory[t.category] || 0) + Number(t.amount);
+      });
+      const sortedCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+
+      // Agrupar por categoria (investimentos)
+      const byInvestCat: Record<string, number> = {};
+      filteredTxs.filter((t) => t.type === "investment").forEach((t) => {
+        byInvestCat[t.category] = (byInvestCat[t.category] || 0) + Number(t.amount);
+      });
+      const sortedInvestCats = Object.entries(byInvestCat).sort((a, b) => b[1] - a[1]);
+
+      // Calcular totais
+      const totalExpenses = Object.values(byCategory).reduce((a, b) => a + b, 0);
+      const totalInvestments = Object.values(byInvestCat).reduce((a, b) => a + b, 0);
+      const totalIncome = filteredTxs.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+      const fixedExpenses = filteredTxs.filter((t) => t.type === "expense" && t.recurrence === "monthly").reduce((s, t) => s + Number(t.amount), 0);
+
+      // Dados mensais para gráfico (últimos 6 meses)
+      const monthMap: Record<string, { receitas: number; gastos: number; investimentos: number }> = {};
+      transactions.forEach((t) => {
+        if (!t || !t.date) return;
+        const m = t.date.slice(0, 7);
+        if (!monthMap[m]) monthMap[m] = { receitas: 0, gastos: 0, investimentos: 0 };
+        if (t.type === "income") monthMap[m].receitas += Number(t.amount);
+        else if (t.type === "expense") monthMap[m].gastos += Number(t.amount);
+        else if (t.type === "investment") monthMap[m].investimentos += Number(t.amount);
+      });
+
+      // Adicionar salário aos meses
+      const salary = Number(summary?.salary || 0);
+      if (salary > 0) {
+        Object.keys(monthMap).forEach((m) => { monthMap[m].receitas += salary; });
+      }
+
+      const monthlyData = Object.entries(monthMap)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-6)
+        .map(([m, v]) => ({
+          month: new Date(m + "-15").toLocaleDateString("pt-BR", { month: "short" }),
+          ...v,
+        }));
+
+      return {
+        sortedCats,
+        sortedInvestCats,
+        totalExpenses,
+        totalInvestments,
+        totalIncome,
+        fixedExpenses,
+        monthlyData,
+        periodLabel: getPeriodLabel(period),
+      };
+    } catch (err) {
+      console.error("Error in StatsPage analysis:", err);
+      return null;
     }
-
-    const startStr = startDate.toISOString().slice(0, 10);
-    const endStr = endDate.toISOString().slice(0, 10);
-
-    // Filtrar transações dentro do período
-    const filteredTxs = transactions.filter((t) => t.date >= startStr && t.date <= endStr);
-
-    // Agrupar por categoria (gastos)
-    const byCategory: Record<string, number> = {};
-    filteredTxs.filter((t) => t.type === "expense").forEach((t) => {
-      byCategory[t.category] = (byCategory[t.category] || 0) + Number(t.amount);
-    });
-    const sortedCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-
-    // Agrupar por categoria (investimentos)
-    const byInvestCat: Record<string, number> = {};
-    filteredTxs.filter((t) => t.type === "investment").forEach((t) => {
-      byInvestCat[t.category] = (byInvestCat[t.category] || 0) + Number(t.amount);
-    });
-    const sortedInvestCats = Object.entries(byInvestCat).sort((a, b) => b[1] - a[1]);
-
-    // Calcular totais
-    const totalExpenses = Object.values(byCategory).reduce((a, b) => a + b, 0);
-    const totalInvestments = Object.values(byInvestCat).reduce((a, b) => a + b, 0);
-    const totalIncome = filteredTxs.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-    const fixedExpenses = filteredTxs.filter((t) => t.type === "expense" && t.recurrence === "monthly").reduce((s, t) => s + Number(t.amount), 0);
-
-    // Dados mensais para gráfico (últimos 6 meses)
-    const monthMap: Record<string, { receitas: number; gastos: number; investimentos: number }> = {};
-    transactions.forEach((t) => {
-      const m = t.date.slice(0, 7);
-      if (!monthMap[m]) monthMap[m] = { receitas: 0, gastos: 0, investimentos: 0 };
-      if (t.type === "income") monthMap[m].receitas += Number(t.amount);
-      else if (t.type === "expense") monthMap[m].gastos += Number(t.amount);
-      else if (t.type === "investment") monthMap[m].investimentos += Number(t.amount);
-    });
-
-    // Adicionar salário aos meses
-    if (summary.salary > 0) {
-      Object.keys(monthMap).forEach((m) => { monthMap[m].receitas += summary.salary; });
-    }
-
-    const monthlyData = Object.entries(monthMap)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-6)
-      .map(([m, v]) => ({
-        month: new Date(m + "-15").toLocaleDateString("pt-BR", { month: "short" }),
-        ...v,
-      }));
-
-    return {
-      sortedCats,
-      sortedInvestCats,
-      totalExpenses,
-      totalInvestments,
-      totalIncome,
-      fixedExpenses,
-      monthlyData,
-      periodLabel: getPeriodLabel(period),
-    };
   }, [transactions, summary, period]);
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+  if (isError || !analysis) return <div className="p-10 text-center text-muted-foreground">Ocorreu um erro ao carregar as estatísticas.</div>;
 
   return (
     <div className="pb-24 animate-fade-in">
@@ -238,14 +256,4 @@ export default function StatsPage() {
       )}
     </div>
   );
-}
-
-function getPeriodLabel(period: PeriodType): string {
-  const labels: Record<PeriodType, string> = {
-    month: "Mês",
-    quarter: "Trimestre",
-    semester: "Semestre",
-    year: "Ano",
-  };
-  return labels[period];
 }
