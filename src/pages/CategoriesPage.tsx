@@ -96,6 +96,14 @@ export default function CategoriesPage() {
                       >
                         <Pencil className="w-3 h-3" />
                       </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Excluir a categoria "${c.name}"?`)) deleteCategory.mutate(c.id);
+                        }}
+                        className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
                   )}
                 </div>
