@@ -281,6 +281,7 @@ export function useDeleteGoal() {
       qc.invalidateQueries({ queryKey: ["goals"] });
       toast.success("Meta removida!");
     },
+    onError: () => toast.error("Erro ao remover meta"),
   });
 }
 
@@ -348,34 +349,31 @@ export function useEnsureMonthlySalary() {
   const monthKey = getMonthKey(new Date());
 
   const hasSalaryThisMonth = allTx.some(
-    (t) => t.is_recurring && t.type === "income" && getMonthKey(t.date) === monthKey
+    (t) => t.is_recurring && t.type === "income" && t.description === "Salário mensal" && getMonthKey(t.date) === monthKey
   );
 
-  // Effect-style: trigger insert once
-  if (user && salary > 0 && !hasSalaryThisMonth && allTx.length >= 0) {
+  // Effect-style: trigger insert once if salary is set and not already present for the current month
+  if (user && salary > 0 && !hasSalaryThisMonth) {
     const firstOfMonth = `${monthKey}-01`;
-    // Check we haven't already attempted this exact insert
-    const flagKey = `salary-inserted-${user.id}-${monthKey}`;
-    if (typeof window !== "undefined" && !sessionStorage.getItem(flagKey)) {
-      sessionStorage.setItem(flagKey, "1");
-      supabase
-        .from("transactions")
-        .insert({
-          user_id: user.id,
-          type: "income",
-          description: "Salário mensal",
-          amount: salary,
-          category: "Salário",
-          date: firstOfMonth,
-          recurrence: "monthly",
-          is_recurring: true,
-          paid: true,
-        })
-        .then(({ error }) => {
-          if (!error) qc.invalidateQueries({ queryKey: ["transactions"] });
-          else console.error("Auto salary insert error:", error);
-        });
-    }
+    supabase
+      .from("transactions")
+      .insert({
+        user_id: user.id,
+        type: "income",
+        description: "Salário mensal",
+        amount: salary,
+        category: "Salário",
+        date: firstOfMonth,
+        recurrence: "monthly",
+        is_recurring: true,
+        paid: true,
+      })
+      .then(({ error }) => {
+        if (!error) {
+          qc.invalidateQueries({ queryKey: ["transactions"] });
+          toast.success("Salário mensal adicionado automaticamente!");
+        }
+        else console.error("Auto salary insert error:", error);
+      });
   }
 }
-
