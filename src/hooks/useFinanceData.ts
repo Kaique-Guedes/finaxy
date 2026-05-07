@@ -207,6 +207,21 @@ export function useUpdateCategory() {
 }
 
 // ---- Goals ----
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Categoria removida!");
+    },
+    onError: () => toast.error("Erro ao remover categoria"),
+  });
+}
+
 export function useGoals() {
   const { user } = useAuth();
   return useQuery({
