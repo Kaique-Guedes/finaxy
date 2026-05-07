@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGoals, useAddGoal, useUpdateGoal, useDeleteGoal, useFinanceSummary } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
+import { parseCurrency, formatCurrency } from "@/lib/currency";
 import { Loader2, X, Plus, Pencil, Trash2 } from "lucide-react";
 
 const goalBarColors = ["#3b82f6", "#38bdf8", "#a78bfa", "#4ade80", "#f59e0b", "#f87171"];
@@ -16,46 +17,50 @@ export default function GoalsPage() {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏦");
   const [target, setTarget] = useState("");
-  const [saved, setSaved] = useState("0");
+  const [saved, setSaved] = useState("");
   const [months, setMonths] = useState("12");
 
-  if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
-
+  // Format initial values when editing
   const openNew = () => {
     setEditingGoal(null);
-    setName(""); setIcon("🏦"); setTarget(""); setSaved("0"); setMonths("12");
+    setName(""); setIcon("🏦"); setTarget(""); setSaved(""); setMonths("12");
     setModalOpen(true);
   };
 
-  const openEdit = (g: typeof goals[0]) => {
+  const openEdit = (g: any) => {
     setEditingGoal(g.id);
     setName(g.name);
     setIcon(g.icon);
-    setTarget(String(g.target_amount));
-    setSaved(String(g.saved_amount));
+    setTarget(formatCurrency(g.target_amount));
+    setSaved(formatCurrency(g.saved_amount));
     setMonths(String(g.months));
     setModalOpen(true);
   };
 
   const handleSave = () => {
-    const t = parseFloat(target);
-    if (!name.trim() || !t) return;
-    const s = parseFloat(saved) || 0;
+    const t = parseCurrency(target);
+    if (!name.trim() || t <= 0) return;
+    const s = parseCurrency(saved) || 0;
+
+    const goalData = {
+      name: name.trim(),
+      icon,
+      target_amount: t,
+      saved_amount: Math.min(s, t),
+      months: parseInt(months) || 12,
+    };
 
     if (editingGoal) {
-      updateGoal.mutate({
-        id: editingGoal,
-        name: name.trim(),
-        icon,
-        target_amount: t,
-        saved_amount: Math.min(s, t),
-        months: parseInt(months) || 12,
-      });
+      updateGoal.mutate({ id: editingGoal, ...goalData });
     } else {
-      addGoal.mutate({ name: name.trim(), icon, target_amount: t, saved_amount: Math.min(s, t), months: parseInt(months) || 12 });
+      addGoal.mutate(goalData);
     }
     setModalOpen(false);
   };
+
+  if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+
+  const availableBalance = summary?.available || 0;
 
   return (
     <div className="pb-24 animate-fade-in">
@@ -68,10 +73,13 @@ export default function GoalsPage() {
 
       <div className="px-5 grid grid-cols-2 gap-3">
         {goals.map((g, i) => {
-          const pct = Math.min(100, Math.round((Number(g.saved_amount) / Number(g.target_amount)) * 100));
-          const monthly = Math.max(0, (Number(g.target_amount) - Number(g.saved_amount)) / g.months);
+          const targetAmt = Number(g.target_amount) || 1;
+          const savedAmt = Number(g.saved_amount) || 0;
+          const pct = Math.min(100, Math.round((savedAmt / targetAmt) * 100));
+          const monthly = Math.max(0, (targetAmt - savedAmt) / (g.months || 1));
           const col = goalBarColors[i % goalBarColors.length];
           const completed = pct >= 100;
+          
           return (
             <div key={g.id} className={`glass-card p-4 relative ${completed ? "ring-1 ring-success/40" : ""}`}>
               {completed && <span className="absolute top-2 right-2 text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded-md font-semibold">✓ Concluída</span>}
@@ -86,14 +94,14 @@ export default function GoalsPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-[13px] font-semibold text-foreground mt-2 mb-1">{g.name}</p>
-              <p className="text-[11px] text-muted-foreground font-mono mb-2.5">Meta: {formatShortCurrency(Number(g.target_amount))}</p>
+              <p className="text-[13px] font-semibold text-foreground mt-2 mb-1 truncate">{g.name}</p>
+              <p className="text-[11px] text-muted-foreground font-mono mb-2.5">Meta: {formatShortCurrency(targetAmt)}</p>
               <div className="h-1 bg-foreground/[0.08] rounded-full mb-2 overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: col }} />
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-semibold" style={{ color: col }}>{pct}%</span>
-                <span className="text-[11px] text-muted-foreground">{formatShortCurrency(Number(g.saved_amount))}</span>
+                <span className="text-[11px] text-muted-foreground">{formatShortCurrency(savedAmt)}</span>
               </div>
               {!completed && <p className="text-[11px] text-muted-foreground mt-1.5">{formatShortCurrency(monthly)}/mês</p>}
             </div>
@@ -106,8 +114,10 @@ export default function GoalsPage() {
           <p className="text-sm font-semibold text-foreground/80 px-5 mt-6 mb-3">Análise de viabilidade</p>
           <div className="px-5 space-y-2.5">
             {goals.filter(g => Number(g.saved_amount) < Number(g.target_amount)).map((g) => {
-              const monthly = (Number(g.target_amount) - Number(g.saved_amount)) / g.months;
-              const ok = monthly <= summary.available;
+              const targetAmt = Number(g.target_amount);
+              const savedAmt = Number(g.saved_amount);
+              const monthly = (targetAmt - savedAmt) / (g.months || 1);
+              const ok = monthly <= availableBalance;
               return (
                 <div key={g.id} className="glass-card flex items-center gap-3 p-3.5">
                   <span className="text-lg">{g.icon}</span>
@@ -152,12 +162,26 @@ export default function GoalsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Valor alvo (R$)</label>
-                <input type="text" inputMode="decimal" pattern="[0-9]*" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="10000" className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" autoComplete="off" />
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Valor alvo</label>
+                <input 
+                  type="text" 
+                  value={target} 
+                  onChange={(e) => setTarget(formatCurrency(e.target.value))} 
+                  placeholder="R$ 0,00" 
+                  className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" 
+                  autoComplete="off" 
+                />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Valor já guardado (R$)</label>
-                <input type="text" inputMode="decimal" pattern="[0-9]*" value={saved} onChange={(e) => setSaved(e.target.value)} placeholder="0" className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" autoComplete="off" />
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Valor já guardado</label>
+                <input 
+                  type="text" 
+                  value={saved} 
+                  onChange={(e) => setSaved(formatCurrency(e.target.value))} 
+                  placeholder="R$ 0,00" 
+                  className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" 
+                  autoComplete="off" 
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Prazo (meses)</label>
