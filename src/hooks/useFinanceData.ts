@@ -108,7 +108,7 @@ export function useAddTransaction() {
   const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (tx: Omit<Transaction, "id" | "user_id" | "created_at">) => {
+    mutationFn: async (tx: Partial<Omit<Transaction, "id" | "user_id" | "created_at">> & { type: Transaction["type"]; description: string; amount: number; category: string; date: string; recurrence: Transaction["recurrence"] }) => {
       const { error } = await supabase.from("transactions").insert({
         ...tx,
         amount: Number(tx.amount),
@@ -130,7 +130,18 @@ export function useAddTransaction() {
   });
 }
 
-export function useDeleteTransaction() {
+export function useUpdateTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<Transaction>) => {
+      const { error } = await supabase.from("transactions").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+  });
+}
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
