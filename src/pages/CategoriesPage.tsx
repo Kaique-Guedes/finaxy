@@ -1,7 +1,9 @@
-import { useCategories, useTransactions, useAddCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useFinanceData";
+import { useCategories, useTransactions, useAddCategory, useUpdateCategory, useDeleteCategory, getMonthKey } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
 import { Loader2, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
+import MonthSelector from "@/components/MonthSelector";
+import { useMonth } from "@/contexts/MonthContext";
 
 export default function CategoriesPage() {
   const { data: categories = [], isLoading } = useCategories();
@@ -9,6 +11,7 @@ export default function CategoriesPage() {
   const addCategory = useAddCategory();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
+  const { monthKey, setMonthKey } = useMonth();
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🏷");
@@ -17,9 +20,11 @@ export default function CategoriesPage() {
   const [editLimit, setEditLimit] = useState("");
 
   const byCategory: Record<string, number> = {};
-  transactions.filter((t) => t.type === "expense").forEach((t) => {
-    byCategory[t.category] = (byCategory[t.category] || 0) + Number(t.amount);
-  });
+  transactions
+    .filter((t) => t.type === "expense" && t.date && getMonthKey(t.date) === monthKey)
+    .forEach((t) => {
+      byCategory[t.category] = (byCategory[t.category] || 0) + Number(t.amount);
+    });
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
 
@@ -38,12 +43,14 @@ export default function CategoriesPage() {
 
   return (
     <div className="pb-24 animate-fade-in">
-      <div className="px-5 pt-6 pb-4 flex justify-between items-center">
+      <div className="px-5 pt-6 pb-2 flex justify-between items-center">
         <h1 className="text-xl font-semibold text-foreground">Categorias</h1>
         <button onClick={() => setShowAdd(!showAdd)} className="bg-primary text-primary-foreground px-3.5 py-1.5 rounded-lg text-[13px] font-semibold flex items-center gap-1">
           <Plus className="w-4 h-4" /> Nova
         </button>
       </div>
+      <MonthSelector monthKey={monthKey} onChange={setMonthKey} />
+      <p className="px-5 mt-2 mb-3 text-[11px] text-muted-foreground">Gastos exibidos referem-se apenas ao mês selecionado.</p>
 
       {showAdd && (
         <div className="mx-5 mb-4 glass-card p-4 space-y-3">

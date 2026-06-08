@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useGoals, useAddGoal, useUpdateGoal, useDeleteGoal, useFinanceSummary } from "@/hooks/useFinanceData";
 import { formatShortCurrency } from "@/lib/format";
-import { parseCurrency, formatCurrency } from "@/lib/currency";
+import { parseCurrency, formatCurrency, formatCurrencyInput } from "@/lib/currency";
 import { Loader2, X, Plus, Pencil, Trash2 } from "lucide-react";
 
 const goalBarColors = ["#3b82f6", "#38bdf8", "#a78bfa", "#4ade80", "#f59e0b", "#f87171"];
@@ -166,7 +166,7 @@ export default function GoalsPage() {
                 <input 
                   type="text" 
                   value={target} 
-                  onChange={(e) => setTarget(formatCurrency(e.target.value))} 
+                  onChange={(e) => setTarget(formatCurrencyInput(e.target.value))} 
                   placeholder="R$ 0,00" 
                   className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" 
                   autoComplete="off" 
@@ -177,7 +177,7 @@ export default function GoalsPage() {
                 <input 
                   type="text" 
                   value={saved} 
-                  onChange={(e) => setSaved(formatCurrency(e.target.value))} 
+                  onChange={(e) => setSaved(formatCurrencyInput(e.target.value))} 
                   placeholder="R$ 0,00" 
                   className="w-full bg-secondary border border-border rounded-lg px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" 
                   autoComplete="off" 

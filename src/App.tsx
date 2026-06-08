@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { MonthProvider } from "@/contexts/MonthContext";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import StatsPage from "@/pages/StatsPage";
@@ -30,21 +31,23 @@ function AppRoutes() {
   if (!user) return <Auth />;
 
   return (
-    <div className="max-w-[430px] mx-auto min-h-screen bg-background relative">
-      <div className="overflow-y-auto min-h-screen">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/stats" element={<StatsPage />} />
-          <Route path="/goals" element={<GoalsPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/projection" element={<ProjectionPage />} />
-          <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+    <MonthProvider>
+      <div className="max-w-[430px] mx-auto min-h-screen bg-background relative">
+        <div className="overflow-y-auto min-h-screen">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/stats" element={<StatsPage />} />
+            <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/projection" element={<ProjectionPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+        <BottomNav />
       </div>
-      <BottomNav />
-    </div>
+    </MonthProvider>
   );
 }
 
