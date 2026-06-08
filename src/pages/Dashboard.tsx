@@ -8,6 +8,8 @@ import TransactionList from "@/components/TransactionList";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import SalarySetup from "@/components/SalarySetup";
 import MonthSelector from "@/components/MonthSelector";
+import MonthlyNotes from "@/components/MonthlyNotes";
+import { useMonth } from "@/contexts/MonthContext";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
@@ -19,7 +21,7 @@ export default function Dashboard() {
   const addTx = useAddTransaction();
   const deleteTx = useDeleteTransaction();
   const [modalOpen, setModalOpen] = useState(false);
-  const [monthKey, setMonthKey] = useState<string>(getMonthKey(new Date()));
+  const { monthKey, setMonthKey } = useMonth();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const navigate = useNavigate();
 
@@ -96,6 +98,7 @@ export default function Dashboard() {
         onDelete={(id) => deleteTx.mutate(id)}
         onEdit={handleEditTransaction}
       />
+      <MonthlyNotes monthKey={monthKey} />
 
       {/* FAB */}
       <button
